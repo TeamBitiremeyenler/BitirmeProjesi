@@ -1,0 +1,9 @@
+Project Calbox
+description: Calbox Mobile App
+version: 1.0.0
+
+Users will take photographs, and I will find the calendar in the photograph and add it if it is present. I will also send notifications if requested.
+At the same time, users will be able to add text and add dates to the text. I will send notifications if requested.
+They will be able to create collections.
+
+tech stack: expo, react native, tailwind, typescript, lucide react native

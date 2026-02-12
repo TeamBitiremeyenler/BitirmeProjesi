@@ -1,0 +1,14 @@
+- backend
+    - add text
+    - add reminder
+    - add photo
+    - create collection
+    - add to collection
+- payment
+- premium check
+
+
+on the feature
+sentry
+
+BGQK2M499M

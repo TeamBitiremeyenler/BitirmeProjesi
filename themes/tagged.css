@@ -1,0 +1,107 @@
+@layer theme {
+    :root {
+        --tagged-orange: oklch(0.7 0.2 45);
+        --tagged-orange-dark: oklch(0.5 0.18 45);
+        --white: #fffaf5;
+        --black: #000000;
+        --eclipse: oklch(0.25 0.02 45);
+        /* Warm dark gray */
+        --snow: oklch(0.98 0.005 45);
+
+        @variant tagged-light {
+            /* Base Colors */
+            --background: var(--white);
+            --foreground: var(--eclipse);
+
+            /* Surface: Used for collection cards and onboarding selection [cite: 3] */
+            --surface: oklch(0.97 0.01 45);
+            --surface-foreground: var(--eclipse);
+
+            /* Overlay: Used for modals when adding text or events  */
+            --overlay: var(--white);
+            --overlay-foreground: var(--eclipse);
+
+            --muted: oklch(0.55 0.02 45);
+
+            --default: oklch(0.94 0.01 45);
+            --default-foreground: var(--eclipse);
+
+            /* Accent: The primary Orange for buttons, active states, and scanning icons  */
+            --accent: var(--tagged-orange);
+            --accent-foreground: var(--white);
+
+            /* Form Field Defaults: For naming collections and entering text dates [cite: 3] */
+            --field-background: var(--snow);
+            --field-foreground: var(--foreground);
+            --field-placeholder: var(--muted);
+            --field-border: oklch(0.9 0.02 45);
+
+            /* Status Colors - Adjusted for warmth */
+            --success: oklch(0.65 0.15 150);
+            --success-foreground: var(--white);
+
+            --warning: oklch(0.75 0.15 75);
+            --warning-foreground: var(--eclipse);
+
+            --danger: oklch(0.6 0.18 25);
+            --danger-foreground: var(--white);
+
+            /* Component Colors */
+            --segment: oklch(0.96 0.01 45);
+            --segment-foreground: var(--eclipse);
+
+            /* Misc Colors */
+            --border: oklch(0.92 0.01 45);
+            --divider: oklch(0.88 0.02 45);
+            --link: var(--tagged-orange);
+        }
+
+        @variant tagged-dark {
+            /* Base Colors - Warm deep tones for photo clarity  */
+            --background: oklch(0.15 0.02 45);
+            --foreground: oklch(0.95 0.01 45);
+
+            /* Surface: Dark mode collection and intent cards [cite: 3] */
+            --surface: oklch(0.2 0.03 45);
+            --surface-foreground: oklch(0.92 0.01 45);
+
+            /* Overlay: Popovers and smart notifications  */
+            --overlay: oklch(0.22 0.03 45);
+            --overlay-foreground: oklch(0.92 0.01 45);
+
+            --muted: oklch(0.5 0.03 45);
+
+            --default: oklch(0.25 0.04 45);
+            --default-foreground: oklch(0.88 0.02 45);
+
+            /* Accent: Glowing orange for dark mode notifications [cite: 2] */
+            --accent: oklch(0.75 0.18 50);
+            --accent-foreground: oklch(0.15 0.02 45);
+
+            /* Form Field Defaults: Adding dates to text [cite: 3] */
+            --field-background: var(--default);
+            --field-foreground: var(--foreground);
+            --field-placeholder: var(--muted);
+            --field-border: oklch(0.3 0.04 45);
+
+            /* Status Colors */
+            --success: oklch(0.68 0.16 155);
+            --success-foreground: oklch(0.15 0.02 45);
+
+            --warning: oklch(0.78 0.14 85);
+            --warning-foreground: var(--eclipse);
+
+            --danger: oklch(0.62 0.18 30);
+            --danger-foreground: var(--white);
+
+            /* Component Colors */
+            --segment: oklch(0.22 0.04 45);
+            --segment-foreground: oklch(0.9 0.015 45);
+
+            /* Misc Colors */
+            --border: oklch(0.28 0.03 45);
+            --divider: oklch(0.3 0.03 45);
+            --link: oklch(0.75 0.18 50);
+        }
+    }
+}

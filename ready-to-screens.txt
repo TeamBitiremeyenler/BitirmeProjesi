@@ -1,0 +1,6 @@
+screens
+calendar page -> https://reactnativecomponents.com/components/calendar/base-agenda-calendar
+
+components
+feedback -> https://reactnativecomponents.com/components/selections/feedbackratingsheet
+keyboard -> https://makeitanimated.dev/animations/perplexity-chat-input-on-focus-animation

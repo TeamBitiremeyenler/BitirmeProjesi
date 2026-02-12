@@ -1,0 +1,304 @@
+{
+    "welcome": {
+        "title": "Welcome to Calbox",
+        "subtitle": "Turn your photos and notes into organized moments effortlessly.",
+        "buttons": {
+            "getStarted": "Get Started",
+            "apple": "Continue with Apple",
+            "email": "Continue with Email"
+        },
+        "sliderTitles": {
+            "first": "Auto-detect calendars from your photos. ",
+            "second": "Link specific dates to your notes. ",
+            "third": "Get notified exactly when you ask. ",
+            "fourth": "Organize everything into custom collections."
+        }
+    },
+    "onboarding": {
+        "steps": {
+            "name_title": "What's your name?",
+            "intent_title": "Tell us more",
+            "collection_title": "Organize"
+        },
+        "use_cases": {
+            "work": "Work deadlines",
+            "social": "Social events",
+            "school": "School schedules",
+            "reminder": "Reminders"
+        },
+        "customizing": {
+            "creating": "Creating your workspace...",
+            "creating_subtitle": "Setting up your workspace...",
+            "personalizing": "Personalizing for {{useCase}}",
+            "personalizing_subtitle": "Customizing for {{useCase}}...",
+            "ready": "Workspace Ready!",
+            "ready_subtitle": "Everything is ready to go! 🎉"
+        },
+        "finished": {
+            "congrats": "Congrats, {{name}}!",
+            "description": "Your first collection \"{{collection}}\" is ready for tagging.",
+            "button": "Let's Tag!"
+        },
+        "intent": {
+            "welcome": "Welcome, {{name}}!",
+            "question": "What will you be tagging most often?"
+        },
+        "collection": {
+            "social_proof": "80,000 Users selected {{useCase}}!",
+            "preview_default": "Your Collection"
+        },
+        "fields": {
+            "name_label": "Name",
+            "name_placeholder": "Enter your name",
+            "name_description": "Used to identify you in the Calbox app.",
+            "collection_label": "First Collection Name",
+            "collection_placeholder": "e.g., Work or Travel",
+            "collection_description": "Create collections to group your photos and notes."
+        },
+        "errors": {
+            "name_required": "Name is required",
+            "collection_required": "Please provide a name for your collection"
+        },
+        "buttons": {
+            "continue": "Continue",
+            "finish": "Finish Setup"
+        }
+    },
+    "paywall": {
+        "award_title": "Best Organization",
+        "award_subtitle": "+20,000 Users joined",
+        "one_time_offer": "One Time Offer",
+        "unlock_potential": "Unlock your full potential with Calbox",
+        "discount_value": "30% OFF",
+        "discount_subtitle": "for early adopters",
+        "only_for": "Only for",
+        "price_original": "$7.99/month",
+        "price_discounted": "$4.99/month",
+        "features": {
+            "collections_title": "Unlimited Collections",
+            "collections_desc": "Create as many collections as you want",
+            "tagging_title": "500+ Photo Tagging",
+            "tagging_desc": "Tag your photos with AI",
+            "items_title": "Add Unlimited tagging items",
+            "items_desc": "Add as many items as you want"
+        },
+        "social_proof": "{{count}} Users joined Calbox today",
+        "cta_button": "Claim Your 30% OFF",
+        "timer": {
+            "hours": "Hours",
+            "minutes": "Mins",
+            "seconds": "Secs"
+        }
+    },
+    "profile": {
+        "title": "Profile",
+        "status_free": "Free Plan",
+        "status_premium": "Premium Plan",
+        "sections": {
+            "premium": "Premium",
+            "support": "Support"
+        },
+        "menu": {
+            "edit_profile": "Edit Profile",
+            "permissions": "Permissions",
+            "rate_app": "Rate App",
+            "upgrade": "Upgrade to Premium",
+            "contact": "Contact Support"
+        },
+        "placeholders": {
+            "notifications_settings": "Notification Preferences",
+            "manage_collections": "Manage Collections"
+        },
+        "dangerZone": {
+            "title": "Danger Zone",
+            "deleteAccount": "Delete Account",
+            "logout": "Logout"
+        }
+    },
+    "paywall_first": {
+        "stats": {
+            "count": "500,000+",
+            "label": "People Calbox"
+        },
+        "reviews": {
+            "review_1": {
+                "name": "Sarah Jenkins",
+                "comment": "I took a photo of my calendar and it added it to the app instantly. Such a time saver!",
+                "date": "2 days ago"
+            },
+            "review_2": {
+                "name": "Marcus T.",
+                "comment": "I love adding dates to my text notes. The notifications are always on time.",
+                "date": "1 week ago"
+            },
+            "review_3": {
+                "name": "Elena Rodriguez",
+                "comment": "Organizing my collections is so easy now. The UI is incredibly smooth and helpful.",
+                "date": "3 days ago"
+            }
+        },
+        "plans": {
+            "yearly": "Yearly",
+            "save_percent": "Save 40%",
+            "price_yearly": "$24.99",
+            "price_original": "$35.99",
+            "price_detail": "Only $2.08 per month. Cancel anytime."
+        },
+        "trial": {
+            "label": "7 Day Free Trial",
+            "button": "Continue"
+        }
+    },
+    "paywall_second": {
+        "header": {
+            "title": "Unlock All",
+            "subtitle": "Premium Features"
+        },
+        "monthly": "Month",
+        "yearly": "Yearly",
+        "stepper": {
+            "today": {
+                "label": "Today",
+                "description": "Your 7-day free trial starts. Access all photo calendar features."
+            },
+            "day5": {
+                "label": "Day 5",
+                "description": "Trial reminder. We'll notify you before your trial ends."
+            },
+            "day7": {
+                "label": "Day 7",
+                "description": "Trial ends. Subscription begins unless canceled."
+            }
+        },
+        "plans": {
+            "yearly": {
+                "name": "Yearly Membership",
+                "save_badge": "30% Save",
+                "billed_info": "Billed annually. After trial ends.",
+                "price_summary_prefix": "than ",
+                "price_summary_suffix": " / 12 Months",
+                "monthly_breakdown": "Only $2.66 per month, billed annually. Cancel anytime."
+            },
+            "monthly": {
+                "name": "Monthly Membership",
+                "billed_info": "Billed monthly. Cancel anytime."
+            },
+            "trial_badge": "7 Days Free"
+        },
+        "buttons": {
+            "start_trial": "Start 7 Days Free Trial",
+            "see_all": "See All Plans",
+            "back": "Back"
+        }
+    },
+    "feedback": {
+        "toast": {
+            "title": "Thank you for your feedback",
+            "description": "Your feedback is much appreciated"
+        },
+        "modal": {
+            "rate": "Rate your experience",
+            "description": "Please take a moment to rate your experience with our app. Your feedback is much appreciated",
+            "button": "Rate",
+            "questions": {
+                "first": "What can be improved?",
+                "second": "What could be better?",
+                "third": "What did you like most?"
+            },
+            "labels": {
+                "ai": "AI",
+                "notification": "Notification",
+                "calendar": "Calendar",
+                "tagging": "Tagging",
+                "organization": "Organization"
+            },
+            "buttons": {
+                "submit": "Submit",
+                "cancel": "Cancel"
+            },
+            "input": {
+                "placeholder": "Enter your feedback"
+            }
+        }
+    },
+    "collectionBottom": {
+        "title": "New Collection",
+        "description": "Give your collection a name to start organizing your items.",
+        "label": "Collection Name",
+        "placeholder": "e.g. Summer Memories",
+        "cancel": "Cancel",
+        "submit": "Create"
+    },
+    "collectionPage": {
+        "update": "Update Collection",
+        "delete": "Delete Collection"
+    },
+    "bottomPaywall": {
+        "title": "Calbox Premium",
+        "description": "Unlock full organization power",
+        "monthly": {
+            "label": "Monthly Plan",
+            "description": "Flexible month-to-month access",
+            "price": "$9.99",
+            "period": "per month"
+        },
+        "yearly": {
+            "label": "12 Months",
+            "description": "Best value",
+            "price": "$69.99",
+            "period": "12 months",
+            "badge": "SAVE 40%"
+        },
+        "cta": "Continue"
+    },
+    "thirdPaywall": {
+        "title": "Master Your Schedule with Calbox",
+        "features": {
+            "calendarScan": {
+                "title": "AI Calendar Scanning",
+                "description": "Take a photo of any schedule; we'll find and add the events automatically."
+            },
+            "smartNotes": {
+                "title": "Smart Text & Notifications",
+                "description": "Add dates to your text notes and receive notifications exactly when requested."
+            },
+            "collections": {
+                "title": "Organized Collections",
+                "description": "Keep your scanned calendars and text notes perfectly organized in custom groups."
+            }
+        },
+        "controls": {
+            "cta": "Try free for 2 weeks",
+            "subscriptionNote": "2 weeks free, then {{price}} per {{period}}. Auto-renews {{fullPeriod}} until cancelled."
+        }
+    },
+    "permissions": {
+        "camera": {
+            "title": "Camera Access",
+            "description": "Calbox needs access to your camera to scan calendars from your photos and add them to your schedule.",
+            "allow": "Allow Access",
+            "later": "Maybe Later",
+            "settings": "Open Settings"
+        },
+        "notifications": {
+            "title": "Stay Notified",
+            "description": "Calbox will send you reminders for calendars you've scanned and dates you've added to your notes.",
+            "allow": "Enable Notifications",
+            "later": "Not Now",
+            "settings": "Open Settings"
+        },
+        "tracking": {
+            "title": "Help Us Improve",
+            "description": "Calbox uses data to improve our calendar recognition and provide a better experience. We never sell your personal information.",
+            "allow": "Allow Tracking",
+            "later": "Not Now",
+            "settings": "Open Settings"
+        }
+    },
+    "home": {
+        "sources": "Sources",
+        "image": "Image",
+        "camera": "Camera",
+        "ai": "AI"
+    }
+}
