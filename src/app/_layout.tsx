@@ -1,4 +1,5 @@
 // src/app/_layout.tsx
+import 'react-native-gesture-handler';
 import { SplashScreen, Stack, useRouter, useSegments } from "expo-router";
 import { HeroUINativeProvider } from 'heroui-native';
 import { StyleSheet } from 'react-native';

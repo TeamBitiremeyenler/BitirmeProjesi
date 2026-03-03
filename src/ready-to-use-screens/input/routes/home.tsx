@@ -13,7 +13,7 @@ import {
   KeyboardStickyView,
   useKeyboardState,
 } from "react-native-keyboard-controller";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import { router } from "expo-router";
 
 // perplexity-text-input-freeze-on-modal-open-animation 🔽
@@ -83,93 +83,95 @@ export default function Home() {
     .runOnJS(true);
 
   return (
-    <GestureDetector gesture={panGesture}>
-      <View
-        className="flex-1 bg-background"
-        style={{ paddingTop: insets.top + 20, paddingBottom: insets.bottom + 12 }}
-      >
-        <Pressable className="flex-1" onPress={Keyboard.dismiss}>
-          {/* perplexity-home-header-animation 🔽 */}
-          {/* Header row: BreathingIcon provides subtle pulsing animation to draw attention
-          The breathing effect creates a gentle, non-intrusive visual cue */}
-          <View className="flex-row px-6 items-center justify-between">
-            <Pressable onPress={() => router.replace("/calendar")}>
-              <Calendar size={24} color="black" />
-            </Pressable>
-            <Pressable onPress={() => router.replace("/profile")}>
-              <CircleUser size={24} color="black" />
-            </Pressable>
-          </View>
-
-          <View className="pt-40 items-center justify-center px-6">
-            <WithShimmer
-              delay={2}
-              duration={4}
-              angle={75}
-              colors={{ start: "#fe6a00", middle: "#fe9644", end: "#ff8d51" }}
-            >
-              <Text className="text-4xl">calbox</Text>
-            </WithShimmer>
-          </View>
-        </Pressable>
-        <KeyboardStickyView
-          offset={{ closed: keyboardOffsetClosed, opened: Platform.OS === "android" ? 36 : 24 }}
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureDetector gesture={panGesture}>
+        <View
+          className="flex-1 bg-background"
+          style={{ paddingTop: insets.top + 20, paddingBottom: insets.bottom + 12 }}
         >
-          <View
-            style={{ borderCurve: "continuous" }}
-            className="mx-6 p-3 rounded-3xl border border-muted/25"
+          <Pressable className="flex-1" onPress={Keyboard.dismiss}>
+            {/* perplexity-home-header-animation 🔽 */}
+            {/* Header row: BreathingIcon provides subtle pulsing animation to draw attention
+          The breathing effect creates a gentle, non-intrusive visual cue */}
+            <View className="flex-row px-6 items-center justify-between">
+              <Pressable onPress={() => router.replace("/calendar")}>
+                <Calendar size={24} color="black" />
+              </Pressable>
+              <Pressable onPress={() => router.replace("/profile")}>
+                <CircleUser size={24} color="black" />
+              </Pressable>
+            </View>
+
+            <View className="pt-40 items-center justify-center px-6">
+              <WithShimmer
+                delay={2}
+                duration={4}
+                angle={75}
+                colors={{ start: "#fe6a00", middle: "#fe9644", end: "#ff8d51" }}
+              >
+                <Text className="text-4xl">calbox</Text>
+              </WithShimmer>
+            </View>
+          </Pressable>
+          <KeyboardStickyView
+            offset={{ closed: keyboardOffsetClosed, opened: Platform.OS === "android" ? 36 : 24 }}
           >
-            <TextInput
-              ref={textInputRef}
-              value={value}
-              onChangeText={setValue}
-              placeholder="Ask anything..."
-              placeholderTextColor="#737373"
-              selectionColor="#ffffff"
-              multiline
-              numberOfLines={5}
-              className="text-lg text-neutral-50 pt-4"
-            />
+            <View
+              style={{ borderCurve: "continuous" }}
+              className="mx-6 p-3 rounded-3xl border border-muted/25"
+            >
+              <TextInput
+                ref={textInputRef}
+                value={value}
+                onChangeText={setValue}
+                placeholder="Ask anything..."
+                placeholderTextColor="#737373"
+                selectionColor="#ffffff"
+                multiline
+                numberOfLines={5}
+                className="text-lg text-neutral-50 pt-4"
+              />
 
-            <View className="flex-row justify-between mt-5">
-              <View className="flex-row items-center gap-3">
-                <Pressable
-                  onPress={() => {
-                    if (textInputRef.current?.isFocused()) {
-                      setIsTextInputFocused(true);
-                      setKeyboardOffsetClosed(
-                        -maxKeyboardHeight + insets.bottom - (Platform.OS === "android" ? 60 : 10)
-                      );
-                      setTimeout(() => KeyboardController.dismiss(), 200);
-                    }
-                    setIsModalVisible(true);
-                  }}
-                  className="p-2 rounded-full bg-accent items-center justify-center"
-                >
-                  <Plus size={18} color="white" />
-                </Pressable>
-                {/* perplexity-bottom-sheet-backdrop-animation 🔼 */}
-                <Pressable
-                  onPress={simulatePress}
-                  className="p-2 rounded-full bg-accent items-center justify-center"
-                >
-                  <Search size={18} color="white" />
-                </Pressable>
-              </View>
+              <View className="flex-row justify-between mt-5">
+                <View className="flex-row items-center gap-3">
+                  <Pressable
+                    onPress={() => {
+                      if (textInputRef.current?.isFocused()) {
+                        setIsTextInputFocused(true);
+                        setKeyboardOffsetClosed(
+                          -maxKeyboardHeight + insets.bottom - (Platform.OS === "android" ? 60 : 10)
+                        );
+                        setTimeout(() => KeyboardController.dismiss(), 200);
+                      }
+                      setIsModalVisible(true);
+                    }}
+                    className="p-2 rounded-full bg-accent items-center justify-center"
+                  >
+                    <Plus size={18} color="white" />
+                  </Pressable>
+                  {/* perplexity-bottom-sheet-backdrop-animation 🔼 */}
+                  <Pressable
+                    onPress={simulatePress}
+                    className="p-2 rounded-full bg-accent items-center justify-center"
+                  >
+                    <Search size={18} color="white" />
+                  </Pressable>
+                </View>
 
-              <View className="flex-row items-center gap-3">
-                <Pressable
-                  onPress={simulatePress}
-                  className="p-2 rounded-full bg-accent items-center justify-center"
-                >
-                  <Send size={18} color="white" />
-                </Pressable>
+                <View className="flex-row items-center gap-3">
+                  <Pressable
+                    onPress={simulatePress}
+                    className="p-2 rounded-full bg-accent items-center justify-center"
+                  >
+                    <Send size={18} color="white" />
+                  </Pressable>
+                </View>
               </View>
             </View>
-          </View>
-        </KeyboardStickyView>
-        <AddFileModal isVisible={isModalVisible} setIsVisible={setIsModalVisible} />
-      </View>
-    </GestureDetector>
+          </KeyboardStickyView>
+          <AddFileModal isVisible={isModalVisible} setIsVisible={setIsModalVisible} />
+        </View>
+      </GestureDetector>
+    </GestureHandlerRootView>
   );
 }
