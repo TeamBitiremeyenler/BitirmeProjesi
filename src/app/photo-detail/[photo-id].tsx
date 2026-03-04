@@ -1,98 +1,135 @@
-import { router, useLocalSearchParams } from "expo-router";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
-import PageProvider from "@/src/components/page-provider";
-import { ChevronLeft, MoreVertical, Pencil, Trash2 } from "lucide-react-native";
-import { Chip, Select } from "heroui-native"; // Import Select
-import { useTranslation } from "react-i18next";
-import { Image } from "expo-image";
+import { useEffect, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import {
+    ActivityIndicator,
+    ScrollView,
+    Share,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { Image } from 'expo-image';
+import { ChevronLeft, Share2 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { getAssetById, type AssetInfo } from '@/src/lib/media-library';
+import { MOCK_PHOTOS } from '@/src/lib/mock-photos';
 
 export default function PhotoDetail() {
-    const { "photo-id": photoId } = useLocalSearchParams<{ "photo-id": string }>();
-    const { t } = useTranslation();
+    const { 'photo-id': photoId } = useLocalSearchParams<{ 'photo-id': string }>();
+    const insets = useSafeAreaInsets();
 
-    const handleAction = (val: { value: string }) => {
-        if (val.value === "update") {
-            console.log("Open Update Modal for:", photoId);
-            // logic to open your create/update sheet
-        } else if (val.value === "delete") {
-            console.log("Delete collection:", photoId);
-            // logic for delete confirmation
+    const [asset, setAsset] = useState<AssetInfo | null>(null);
+    const [mockUri, setMockUri] = useState<string | null>(null);
+    const [mockMeta, setMockMeta] = useState<{ creationTime: number; width: number; height: number } | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!photoId) return;
+
+        // Check mock photos first (for demo mode)
+        const mock = MOCK_PHOTOS.find(p => p.id === photoId);
+        if (mock) {
+            setMockUri(mock.uri);
+            setMockMeta({ creationTime: mock.creationTime, width: mock.width, height: mock.height });
+            setIsLoading(false);
+            return;
         }
+
+        // Load real asset from media library
+        getAssetById(photoId)
+            .then(info => setAsset(info))
+            .catch(() => setError('Could not load photo.'))
+            .finally(() => setIsLoading(false));
+    }, [photoId]);
+
+    const imageUri = asset?.localUri ?? asset?.uri ?? mockUri;
+
+    const handleShare = async () => {
+        if (!imageUri) return;
+        try { await Share.share({ url: imageUri }); } catch { }
     };
 
-    const TAGS = [
-        "#lorem",
-        "#ipsum",
-        "#color",
-        "#brand"
-    ]
+    const formatDate = (ms: number) =>
+        new Date(ms).toLocaleDateString('en-US', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        });
+
+    if (isLoading) {
+        return (
+            <View style={[styles.center, { paddingTop: insets.top }]}>
+                <ActivityIndicator size="large" />
+            </View>
+        );
+    }
+
+    if (error || (!asset && !mockUri)) {
+        return (
+            <View style={[styles.center, { paddingTop: insets.top }]}>
+                <Text style={styles.errorText}>{error ?? 'Photo not found.'}</Text>
+                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                    <Text style={styles.backBtnText}>Go Back</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
 
     return (
-        <PageProvider>
-            <View className="flex flex-row items-center justify-between">
-                <TouchableOpacity onPress={() => router.replace('/home')}>
+        <View style={[styles.root, { paddingTop: insets.top }]}>
+            {/* Top bar */}
+            <View style={styles.topBar}>
+                <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
                     <ChevronLeft size={24} color="#000" />
                 </TouchableOpacity>
-
-                <View className="flex-1">
-                    <Text className="text-lg font-bold text-center" numberOfLines={1}>
-                        Photo page
-                    </Text>
-                </View>
-
-                {/* --- SELECT COMPONENT START --- */}
-                <Select onValueChange={(value) => {
-                    if (value) {
-                        handleAction(value);
-                    }
-                }}>
-                    <Select.Trigger asChild>
-                        <TouchableOpacity>
-                            <MoreVertical size={24} color="#000" />
-                        </TouchableOpacity>
-                    </Select.Trigger>
-
-                    <Select.Portal>
-                        <Select.Overlay />
-                        <Select.Content
-                            presentation="popover"
-                            placement="bottom"
-                            align="end"
-                            width={280}
-                        >
-                            <Select.Item value="update" label={t("collectionPage.update")}>
-                                <View className="flex-row items-center gap-3 flex-1">
-                                    <Pencil size={18} color="#737272" />
-                                    <Select.ItemLabel className="text-foreground" />
-                                </View>
-                            </Select.Item>
-
-                            <Select.Item value="delete" label={t("collectionPage.delete")}>
-                                <View className="flex-row items-center gap-3 flex-1">
-                                    <Trash2 size={18} color="#ef4444" />
-                                    <Select.ItemLabel className="text-danger font-medium" />
-                                </View>
-                            </Select.Item>
-                        </Select.Content>
-                    </Select.Portal>
-                </Select>
+                <Text style={styles.topTitle} numberOfLines={1}>
+                    {asset ? formatDate(asset.creationTime) : 'Photo'}
+                </Text>
+                <TouchableOpacity onPress={handleShare} style={styles.iconBtn}>
+                    <Share2 size={22} color="#000" />
+                </TouchableOpacity>
             </View>
-            <ScrollView className="mt-6">
-                <View className="mb-4">
-                    <Text className="font-bold text-lg">12.06.2026</Text>
-                </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 <Image
-                    source={require("@/assets/note.jpg")}
-                    style={{ width: '100%', height: 300, borderRadius: 16, marginVertical: 16 }}
+                    source={{ uri: imageUri! }}
+                    style={styles.image}
+                    contentFit="contain"
+                    transition={200}
                 />
-                <View className="flex-row gap-2">
-                    {TAGS.map((tag, index) => (
-                        <Chip key={index}>
-                            <Chip.Label>{tag}</Chip.Label>
-                        </Chip>
-                    ))}
-                </View>
+
+                {(asset || mockMeta) && (
+                    <View style={styles.meta}>
+                        <Text style={styles.metaTitle}>{formatDate((asset ?? mockMeta)!.creationTime)}</Text>
+                        <Text style={styles.metaText}>{(asset ?? mockMeta)!.width} × {(asset ?? mockMeta)!.height} px</Text>
+                        {asset?.location && (
+                            <Text style={styles.metaText}>
+                                {asset.location.latitude.toFixed(4)}, {asset.location.longitude.toFixed(4)}
+                            </Text>
+                        )}
+                    </View>
+                )}
             </ScrollView>
-        </PageProvider>
+        </View>
     );
 }
+
+const styles = StyleSheet.create({
+    root: { flex: 1, backgroundColor: '#fff' },
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+    errorText: { fontSize: 15, color: '#737272', textAlign: 'center', marginBottom: 16 },
+    backBtn: { backgroundColor: '#6366f1', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
+    backBtnText: { color: '#fff', fontWeight: '600' },
+    topBar: {
+        flexDirection: 'row', alignItems: 'center',
+        paddingHorizontal: 8, paddingVertical: 8, gap: 4,
+    },
+    iconBtn: { padding: 8 },
+    topTitle: { flex: 1, fontSize: 14, fontWeight: '600', textAlign: 'center', color: '#333' },
+    scrollContent: { paddingBottom: 40 },
+    image: { width: '100%', height: 360 },
+    meta: { padding: 16, gap: 6 },
+    metaTitle: { fontSize: 16, fontWeight: '700' },
+    metaText: { fontSize: 13, color: '#737272' },
+});
