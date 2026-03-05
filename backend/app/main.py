@@ -1,0 +1,36 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.api.endpoints import upload, search, people
+from app.core.config import settings
+import uvicorn
+
+app = FastAPI(
+    title="Smart Gallery Backend",
+    description="Intelligence API for Semantic Search, Face Clustering, and Ephemeral Processing",
+    version="1.0.0"
+)
+
+# Allow all origins for mobile app local development, can restrict in production
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Register routers
+app.include_router(upload.router, prefix="/api", tags=["Upload"])
+app.include_router(search.router, prefix="/api", tags=["Search"])
+app.include_router(people.router, prefix="/api", tags=["People"])
+
+@app.get("/health")
+def health_check():
+    return {
+        "status": "online",
+        "supabase_configured": bool(settings and settings.SUPABASE_URL),
+        "qdrant_configured": bool(settings and settings.QDRANT_HOST)
+    }
+
+if __name__ == "__main__":
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

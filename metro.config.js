@@ -1,9 +1,11 @@
 const { getDefaultConfig } = require("expo/metro-config");
-const { withUniwindConfig } = require('uniwind/metro'); 
- 
+const { withUniwindConfig } = require('uniwind/metro');
+const exclusionList = require('metro-config/src/defaults/exclusionList');
+
 const config = getDefaultConfig(__dirname)
- 
-module.exports = withUniwindConfig(config, {  
+config.resolver.blockList = exclusionList([/backend\/.*/]);
+
+module.exports = withUniwindConfig(config, {
   cssEntryFile: './global.css',
   dtsFile: './src/uniwind-types.d.ts',
   extraThemes: [
