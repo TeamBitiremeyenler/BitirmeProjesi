@@ -1,5 +1,7 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+import os
+
 class Settings(BaseSettings):
     # Supabase
     SUPABASE_URL: str
@@ -7,10 +9,13 @@ class Settings(BaseSettings):
     JWT_SECRET: str
     
     model_config = SettingsConfigDict(
-        env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore"
     )
+
+env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), ".env")
+from dotenv import load_dotenv
+load_dotenv(dotenv_path=env_path)
 
 try:
     settings = Settings()
