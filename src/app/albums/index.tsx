@@ -9,7 +9,7 @@ import {
     View,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 import * as MediaLibrary from 'expo-media-library';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
@@ -30,9 +30,14 @@ const MOCK_ALBUMS = [
 type AlbumItem = { id: string; title: string; count: number; thumbUri: string | null };
 
 export default function AlbumsScreen() {
+    const router = useRouter();
     const insets = useSafeAreaInsets();
     const [albums, setAlbums] = useState<AlbumItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+
+    const handleBack = useCallback(() => {
+        router.replace('/home');
+    }, [router]);
 
     const loadAlbums = useCallback(async () => {
         setIsLoading(true);
@@ -78,7 +83,7 @@ export default function AlbumsScreen() {
         <View style={[styles.root, { paddingTop: insets.top }]}>
             {/* Header with back button */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+                <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
                     <ChevronLeft size={24} color="#000" />
                 </TouchableOpacity>
                 <Text style={styles.title}>Albums</Text>

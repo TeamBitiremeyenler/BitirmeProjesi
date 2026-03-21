@@ -51,6 +51,15 @@
         }
       ],
       [
+        "expo-media-library",
+        {
+          "isAccessMediaLocationEnabled": true,
+          "granularPermissions": [
+            "photo"
+          ]
+        }
+      ],
+      [
         "expo-tracking-transparency",
         {
           "userTrackingPermission": "This identifier will be used to deliver personalized ads to you."

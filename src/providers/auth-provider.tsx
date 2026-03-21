@@ -1,9 +1,27 @@
 // src/providers/auth-provider.tsx
 import { AuthContext } from '@/src/hooks/auth-hooks';
-import { supabase } from '@/lib/supabase';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import type { Session } from '@supabase/supabase-js';
 import { PropsWithChildren, useEffect, useState, useCallback } from 'react';
 import type { Profile } from '@/src/types/user.type';
+
+function isMissingProfilesTableError(error: unknown): boolean {
+    return (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'PGRST205'
+    );
+}
+
+function isMissingProfileRowError(error: unknown): boolean {
+    return (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'PGRST116'
+    );
+}
 
 export default function AuthProvider({ children }: PropsWithChildren) {
     const [session, setSession] = useState<Session | null>(null);
@@ -20,15 +38,20 @@ export default function AuthProvider({ children }: PropsWithChildren) {
                 .select('*')
                 .eq('id', userId)
                 .single();
-            console.log("Response geldi -> ", data)
+
             if (error) {
-                console.error('Error fetching profile:', error);
+                if (isMissingProfilesTableError(error) || isMissingProfileRowError(error)) {
+                    setProfile(null);
+                    return;
+                }
+
+                console.warn('Profile fetch failed:', error);
                 setProfile(null);
             } else {
                 setProfile(data as Profile);
             }
         } catch (error) {
-            console.error('Error in fetchProfile:', error);
+            console.warn('Unexpected profile fetch failure:', error);
             setProfile(null);
         } finally {
             setIsProfileLoading(false); // NEW
@@ -39,6 +62,16 @@ export default function AuthProvider({ children }: PropsWithChildren) {
         let isMounted = true;
 
         const initializeAuth = async () => {
+            if (!isSupabaseConfigured) {
+                if (isMounted) {
+                    setSession(null);
+                    setProfile(null);
+                    setIsLoading(false);
+                    setIsInitialized(true);
+                }
+                return;
+            }
+
             try {
                 const {
                     data: { session: currentSession },
@@ -78,7 +111,7 @@ export default function AuthProvider({ children }: PropsWithChildren) {
     }, [fetchProfile]);
 
     useEffect(() => {
-        if (!isInitialized) return;
+        if (!isInitialized || !isSupabaseConfigured) return;
 
         const {
             data: { subscription },

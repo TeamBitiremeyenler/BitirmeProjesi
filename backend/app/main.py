@@ -29,7 +29,8 @@ def health_check():
     return {
         "status": "online",
         "supabase_configured": bool(settings and settings.SUPABASE_URL),
-        "qdrant_configured": bool(settings and settings.QDRANT_HOST)
+        "qdrant_configured": bool(settings and settings.QDRANT_HOST),
+        "dev_bypass_auth": bool(settings and settings.DEV_BYPASS_AUTH),
     }
 
 if __name__ == "__main__":

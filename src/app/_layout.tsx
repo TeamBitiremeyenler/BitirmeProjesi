@@ -1,6 +1,6 @@
 // src/app/_layout.tsx
 import 'react-native-gesture-handler';
-import { SplashScreen, Stack, useRouter, useSegments } from "expo-router";
+import { SplashScreen, Stack, usePathname, useRootNavigationState, useRouter, useSegments } from "expo-router";
 import { HeroUINativeProvider } from 'heroui-native';
 import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -10,8 +10,9 @@ import { Uniwind } from "uniwind";
 import { initMixpanel } from '@/src/mixpanel';
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { useAuthContext } from "../hooks/auth-hooks";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AuthProvider from "../providers/auth-provider";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 initMixpanel();
 Uniwind.setTheme('tagged-light');
@@ -21,31 +22,53 @@ SplashScreen.preventAutoHideAsync();
 function RootLayoutNav() {
   const { profile, isLoading, isLoggedIn } = useAuthContext();
   const segments = useSegments();
+  const pathname = usePathname();
   const router = useRouter();
+  const rootNavigationState = useRootNavigationState();
   const [isNavigationReady, setIsNavigationReady] = useState(false);
+  const hasBootstrappedNavigation = useRef(false);
 
-  // CRITICAL: All hooks must be called before any conditional returns
-  // Navigation logic
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || !rootNavigationState?.key) return;
 
     const currentPath = segments[0] || "";
     const inAuthGroup = currentPath === "login" || currentPath === "register";
     const inOnboarding = currentPath === "onboarding";
     const isAtRoot = segments.length < 1;
 
-    if (!isLoggedIn) {
-      // User is not logged in
-      // Allow them to stay on welcome (root), login, or register screens
-      // Redirect from any other screen to welcome
+    if (!hasBootstrappedNavigation.current) {
+      hasBootstrappedNavigation.current = true;
+
+      if (!isSupabaseConfigured) {
+        if (pathname !== "/home") {
+          router.replace("/home");
+        }
+      } else if (!isLoggedIn) {
+        if (!inAuthGroup && !isAtRoot) {
+          router.replace("/");
+        }
+      } else if (!profile?.onboarding_completed) {
+        if (!inOnboarding) {
+          router.replace("/onboarding");
+        }
+      } else if (pathname !== "/home") {
+        router.replace("/home");
+      }
+
+      setIsNavigationReady(true);
+      return;
+    }
+
+    if (!isSupabaseConfigured) {
+      if (pathname !== "/home") {
+        router.replace("/home");
+      }
+    } else if (!isLoggedIn) {
       if (!inAuthGroup && !isAtRoot) {
         router.replace("/");
       }
     } else {
-      // User is logged in
       if (!profile?.onboarding_completed) {
-        // User hasn't completed onboarding
-        // Force them to onboarding screen unless already there
         if (!inOnboarding) {
           router.replace("/onboarding");
         }
@@ -57,19 +80,13 @@ function RootLayoutNav() {
     }
 
     setIsNavigationReady(true);
-  }, [isLoading, isLoggedIn, profile?.onboarding_completed, segments]);
+  }, [isLoading, isLoggedIn, pathname, profile?.onboarding_completed, rootNavigationState?.key, router, segments]);
 
-  // Hide splash screen once navigation is ready
   useEffect(() => {
-    if (isNavigationReady && !isLoading) {
+    if (isNavigationReady && !isLoading && rootNavigationState?.key) {
       SplashScreen.hideAsync();
     }
-  }, [isNavigationReady, isLoading]);
-
-  // Keep splash screen visible while auth is loading or navigation isn't ready
-  if (isLoading || !isNavigationReady) {
-    return null;
-  }
+  }, [isNavigationReady, isLoading, rootNavigationState?.key]);
 
   return <Stack screenOptions={{ headerShown: false }} />;
 }

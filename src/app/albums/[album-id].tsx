@@ -9,7 +9,7 @@ import {
     View,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as MediaLibrary from 'expo-media-library';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
@@ -25,6 +25,7 @@ const THUMB_SIZE = Math.floor((SCREEN_WIDTH - GAP * (COLUMNS - 1)) / COLUMNS);
 type RowItem = { assets: Asset[] };
 
 export default function AlbumDetailScreen() {
+    const router = useRouter();
     const { 'album-id': albumId } = useLocalSearchParams<{ 'album-id': string }>();
     const insets = useSafeAreaInsets();
 
@@ -35,6 +36,10 @@ export default function AlbumDetailScreen() {
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const cursorRef = useRef<string | undefined>(undefined);
     const hasMoreRef = useRef(true);
+
+    const handleBack = useCallback(() => {
+        router.replace('/albums');
+    }, [router]);
 
     const load = useCallback(async (reset = false) => {
         if (!albumId) return;
@@ -76,7 +81,7 @@ export default function AlbumDetailScreen() {
 
     const handlePress = useCallback((asset: Asset) => {
         router.push(`/photo-detail/${asset.id}`);
-    }, []);
+    }, [router]);
 
     // Build rows of 3
     const rows: RowItem[] = [];
@@ -87,7 +92,7 @@ export default function AlbumDetailScreen() {
     return (
         <View style={[styles.root, { paddingTop: insets.top }]}>
             <View style={styles.topBar}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+                <TouchableOpacity onPress={handleBack} style={styles.iconBtn}>
                     <ChevronLeft size={24} color="#000" />
                 </TouchableOpacity>
                 <Text style={styles.title} numberOfLines={1}>{album?.title ?? 'Album'}</Text>
