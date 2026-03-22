@@ -109,7 +109,7 @@ export default function Home() {
                 angle={75}
                 colors={{ start: "#fe6a00", middle: "#fe9644", end: "#ff8d51" }}
               >
-                <Text className="text-4xl">calbox</Text>
+                <Text className="text-4xl">Smart Gallery</Text>
               </WithShimmer>
             </View>
           </Pressable>

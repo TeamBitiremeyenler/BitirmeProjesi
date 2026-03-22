@@ -1,5 +1,4 @@
 // src/app/_layout.tsx
-import 'react-native-gesture-handler';
 import { SplashScreen, Stack, usePathname, useRootNavigationState, useRouter, useSegments } from "expo-router";
 import { HeroUINativeProvider } from 'heroui-native';
 import { StyleSheet } from 'react-native';
@@ -13,6 +12,7 @@ import { useAuthContext } from "../hooks/auth-hooks";
 import { useEffect, useRef, useState } from "react";
 import AuthProvider from "../providers/auth-provider";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import { ensureLaunchSearchSync } from '@/src/lib/sync-service';
 
 initMixpanel();
 Uniwind.setTheme('tagged-light');
@@ -27,6 +27,7 @@ function RootLayoutNav() {
   const rootNavigationState = useRootNavigationState();
   const [isNavigationReady, setIsNavigationReady] = useState(false);
   const hasBootstrappedNavigation = useRef(false);
+  const hasStartedLaunchSync = useRef(false);
 
   useEffect(() => {
     if (isLoading || !rootNavigationState?.key) return;
@@ -87,6 +88,22 @@ function RootLayoutNav() {
       SplashScreen.hideAsync();
     }
   }, [isNavigationReady, isLoading, rootNavigationState?.key]);
+
+  useEffect(() => {
+    if (hasStartedLaunchSync.current) return;
+    if (isLoading || !rootNavigationState?.key) return;
+    if (isSupabaseConfigured && !isLoggedIn) return;
+
+    hasStartedLaunchSync.current = true;
+
+    ensureLaunchSearchSync()
+      .then((summary) => {
+        console.log('Launch search sync summary:', summary);
+      })
+      .catch((error) => {
+        console.warn('Launch search sync failed:', error);
+      });
+  }, [isLoading, isLoggedIn, rootNavigationState?.key]);
 
   return <Stack screenOptions={{ headerShown: false }} />;
 }

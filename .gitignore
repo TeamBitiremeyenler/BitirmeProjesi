@@ -87,3 +87,8 @@ yarn-error.*
 *.tsbuildinfo
 
 # @end expo-cli
+
+# Local planning / agent notes
+AGENTS.md
+tasks/
+roadmap*.md

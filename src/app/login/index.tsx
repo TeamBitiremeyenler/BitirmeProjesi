@@ -53,7 +53,7 @@ export default function LoginScreen() {
                             Welcome Back
                         </Text>
                         <Text>
-                            Sign in to access your Calbox collections
+                            Sign in to access your Smart Gallery collections
                         </Text>
                     </View>
 
@@ -94,7 +94,7 @@ export default function LoginScreen() {
                     <View className="flex-row justify-center items-center gap-2 mt-4">
 
                         <View className="flex-row gap-1">
-                            <Text>Don't have an account?</Text>
+                            <Text>Don&apos;t have an account?</Text>
                             <Link href="/register">
                                 <Text className="text-primary font-bold">
                                     Register

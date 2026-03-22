@@ -17,10 +17,20 @@ type BackendPayload = {
     mode?: string;
 };
 
+type ClearCachePayload = {
+    status?: string;
+    summary?: unknown;
+};
+
 export type SearchPhotosResponse = {
     photos: SearchResultPhoto[];
     usedFallback: boolean;
     fallbackReason?: 'backend_unavailable' | 'backend_not_configured' | 'backend_degraded' | 'no_synced_matches';
+};
+
+export type ClearSearchCacheResponse = {
+    remoteCleared: boolean;
+    reason?: 'backend_unavailable' | 'backend_not_configured';
 };
 
 type RemoteSearchResponse = {
@@ -28,7 +38,8 @@ type RemoteSearchResponse = {
     mode: string;
 };
 
-const SEARCH_REQUEST_TIMEOUT_MS = 2500;
+const SEARCH_REQUEST_TIMEOUT_MS = 15000;
+const SYNCED_BACKEND_MODES = new Set(['pgvector_rpc', 'python_scan', 'lexical_fast_path']);
 
 function resolveBackendBaseUrl(): string | null {
     const envUrl = process.env.EXPO_PUBLIC_BACKEND_URL?.trim();
@@ -284,7 +295,7 @@ export async function searchPhotos(query: string): Promise<SearchPhotosResponse>
     try {
         const remote = await searchRemotely(trimmedQuery);
         if (remote.photos.length > 0) {
-            const degradedBackend = remote.mode !== 'pgvector_rpc';
+            const degradedBackend = !SYNCED_BACKEND_MODES.has(remote.mode);
             return {
                 photos: remote.photos,
                 usedFallback: degradedBackend,
@@ -331,5 +342,65 @@ export async function searchPhotos(query: string): Promise<SearchPhotosResponse>
                     ? 'backend_not_configured'
                     : 'backend_unavailable',
         };
+    }
+}
+
+export async function clearRemoteSearchCache(): Promise<ClearSearchCacheResponse> {
+    const baseUrl = resolveBackendBaseUrl();
+    if (!baseUrl) {
+        return {
+            remoteCleared: false,
+            reason: 'backend_not_configured',
+        };
+    }
+
+    let accessToken: string | undefined;
+    try {
+        const {
+            data: { session },
+        } = await supabase.auth.getSession();
+        accessToken = session?.access_token;
+    } catch {
+        accessToken = undefined;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SEARCH_REQUEST_TIMEOUT_MS);
+
+    try {
+        const response = await fetch(`${baseUrl}/api/search/cache`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+            },
+            signal: controller.signal,
+        });
+
+        if (!response.ok) {
+            return {
+                remoteCleared: false,
+                reason: 'backend_unavailable',
+            };
+        }
+
+        const payload = (await response.json()) as ClearCachePayload;
+        if (payload.status !== 'success') {
+            return {
+                remoteCleared: false,
+                reason: 'backend_unavailable',
+            };
+        }
+
+        return {
+            remoteCleared: true,
+        };
+    } catch {
+        return {
+            remoteCleared: false,
+            reason: 'backend_unavailable',
+        };
+    } finally {
+        clearTimeout(timeoutId);
     }
 }

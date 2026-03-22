@@ -27,3 +27,18 @@ async def search_images(
         "mode": response.mode,
         "results": response.results,
     }
+
+
+@router.delete("/search/cache")
+async def clear_search_cache(
+    user_id: str = Depends(get_current_user_id)
+):
+    try:
+        summary = SearchService().clear_user_index_data(user_id=user_id)
+    except Exception as clear_error:
+        raise HTTPException(status_code=500, detail=f"Cache cleanup failed: {clear_error}")
+
+    return {
+        "status": "success",
+        "summary": summary,
+    }

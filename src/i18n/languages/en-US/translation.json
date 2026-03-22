@@ -1,6 +1,6 @@
 {
     "welcome": {
-        "title": "Welcome to Calbox",
+        "title": "Welcome to Smart Gallery",
         "subtitle": "Turn your photos and notes into organized moments effortlessly.",
         "buttons": {
             "getStarted": "Get Started",
@@ -50,7 +50,7 @@
         "fields": {
             "name_label": "Name",
             "name_placeholder": "Enter your name",
-            "name_description": "Used to identify you in the Calbox app.",
+            "name_description": "Used to identify you in the Smart Gallery app.",
             "collection_label": "First Collection Name",
             "collection_placeholder": "e.g., Work or Travel",
             "collection_description": "Create collections to group your photos and notes."
@@ -68,7 +68,7 @@
         "award_title": "Best Organization",
         "award_subtitle": "+20,000 Users joined",
         "one_time_offer": "One Time Offer",
-        "unlock_potential": "Unlock your full potential with Calbox",
+        "unlock_potential": "Unlock your full potential with Smart Gallery",
         "discount_value": "30% OFF",
         "discount_subtitle": "for early adopters",
         "only_for": "Only for",
@@ -82,7 +82,7 @@
             "items_title": "Add Unlimited tagging items",
             "items_desc": "Add as many items as you want"
         },
-        "social_proof": "{{count}} Users joined Calbox today",
+        "social_proof": "{{count}} users joined Smart Gallery today",
         "cta_button": "Claim Your 30% OFF",
         "timer": {
             "hours": "Hours",
@@ -118,7 +118,7 @@
     "paywall_first": {
         "stats": {
             "count": "500,000+",
-            "label": "People Calbox"
+            "label": "Smart Gallery Users"
         },
         "reviews": {
             "review_1": {
@@ -234,7 +234,7 @@
         "delete": "Delete Collection"
     },
     "bottomPaywall": {
-        "title": "Calbox Premium",
+        "title": "Smart Gallery Premium",
         "description": "Unlock full organization power",
         "monthly": {
             "label": "Monthly Plan",
@@ -252,7 +252,7 @@
         "cta": "Continue"
     },
     "thirdPaywall": {
-        "title": "Master Your Schedule with Calbox",
+        "title": "Master Your Schedule with Smart Gallery",
         "features": {
             "calendarScan": {
                 "title": "AI Calendar Scanning",
@@ -275,21 +275,21 @@
     "permissions": {
         "camera": {
             "title": "Camera Access",
-            "description": "Calbox needs access to your camera to scan calendars from your photos and add them to your schedule.",
+            "description": "Smart Gallery needs access to your camera to capture photos and enrich your gallery experience.",
             "allow": "Allow Access",
             "later": "Maybe Later",
             "settings": "Open Settings"
         },
         "notifications": {
             "title": "Stay Notified",
-            "description": "Calbox will send you reminders for calendars you've scanned and dates you've added to your notes.",
+            "description": "Smart Gallery will send you reminders about the moments and features you choose to follow.",
             "allow": "Enable Notifications",
             "later": "Not Now",
             "settings": "Open Settings"
         },
         "tracking": {
             "title": "Help Us Improve",
-            "description": "Calbox uses data to improve our calendar recognition and provide a better experience. We never sell your personal information.",
+            "description": "Smart Gallery uses data to improve photo understanding and provide a better experience. We never sell your personal information.",
             "allow": "Allow Tracking",
             "later": "Not Now",
             "settings": "Open Settings"

@@ -10,11 +10,11 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Calendar, LayoutGrid, Search, UserRound, X } from 'lucide-react-native';
+import { Calendar, LayoutGrid, Search, UserRound, Users, X } from 'lucide-react-native';
 
 import { GalleryGrid } from '@/src/components/gallery/GalleryGrid';
 import { PhotoResultsGrid, type SearchResultPhoto } from '@/src/components/gallery/PhotoResultsGrid';
-import { searchPhotos } from '@/src/lib/api/search';
+import { clearRemoteSearchCache, searchPhotos } from '@/src/lib/api/search';
 import { clearSyncMap } from '@/src/lib/local-sync-store';
 
 export default function HomePage() {
@@ -71,10 +71,18 @@ export default function HomePage() {
     const clearLocalCache = async () => {
         setIsClearingLocalCache(true);
         try {
+            const remoteCleanup = await clearRemoteSearchCache();
             await clearSyncMap();
             setResults([]);
             setSubmittedQuery('');
-            setSearchHint('Yerel uygulama cache temizlendi. Aramayi tekrar deneyebilirsin.');
+
+            if (remoteCleanup.remoteCleared) {
+                setSearchHint('Yerel cache ve Supabase tarafindaki kullanici index verileri temizlendi.');
+            } else if (remoteCleanup.reason === 'backend_not_configured') {
+                setSearchHint('Yerel cache temizlendi. Backend URL ayarsiz oldugu icin Supabase temizligi atlandi.');
+            } else {
+                setSearchHint('Yerel cache temizlendi. Supabase temizligi su an yapilamadi.');
+            }
         } finally {
             setIsClearingLocalCache(false);
         }
@@ -85,8 +93,8 @@ export default function HomePage() {
             <View style={styles.header}>
                 <Text style={styles.title}>Photos</Text>
                 <View style={styles.actions}>
-                    <TouchableOpacity style={styles.iconBtn} onPress={handleSearch}>
-                        <Search size={22} color="#737272" />
+                    <TouchableOpacity onPress={() => router.push('/people' as any)} style={styles.iconBtn}>
+                        <Users size={22} color="#737272" />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => router.push('/albums' as any)} style={styles.iconBtn}>
                         <LayoutGrid size={22} color="#737272" />

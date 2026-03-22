@@ -1,14 +1,14 @@
-# HeroUI Native Example App
+# Smart Gallery
 
-This is a React Native (Expo 54) project with [HeroUI Native](https://github.com/heroui-inc/heroui-native) - a modern UI library that provides beautiful and customizable components for React Native applications.
+Smart Gallery is a React Native (Expo 54) app for browsing local photos, semantic search, and people clustering, built with [HeroUI Native](https://github.com/heroui-inc/heroui-native).
 
 ## Get started
 
 1. Clone the repository
 
    ```bash
-   git clone https://github.com/heroui-inc/heroui-native-example.git
-   cd heroui-native-example
+   git clone <your-smart-gallery-repo>
+   cd smart-gallery
    ```
 
 2. Install dependencies
@@ -42,7 +42,7 @@ When you're ready to start with a clean slate, run:
 npm run reset-project
 ```
 
-This command will move the current **src** directory to **app-example-src** and create a new **src/app** directory with basic HeroUI Native setup where you can start developing.
+This command will move the current **src** directory to **app-example-src** and create a new **src/app** directory with a basic HeroUI Native setup.
 
 ## About HeroUI Native
 

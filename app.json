@@ -1,17 +1,17 @@
 {
   "expo": {
-    "name": "Calbox",
-    "slug": "calbox",
+    "name": "Smart Gallery",
+    "slug": "smart-gallery",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "heroui-native-example",
+    "scheme": "smart-gallery",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "usesAppleSignIn": true,
-      "bundleIdentifier": "com.bedirhan.calbox"
+      "bundleIdentifier": "com.bedirhan.smartgallery"
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +22,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.dev.bedirhan.herouinativeexample"
+      "package": "com.dev.bedirhan.smartgallery"
     },
     "web": {
       "output": "static",

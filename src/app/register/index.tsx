@@ -58,7 +58,7 @@ export default function RegisterScreen() {
                             Create Account
                         </Text>
                         <Text>
-                            Join Calbox to start scanning calendars from your photos
+                            Join Smart Gallery to organize and search the moments in your photos
                         </Text>
                     </View>
 
@@ -93,7 +93,7 @@ export default function RegisterScreen() {
                             <View className="flex-1">
                                 <FormField.Label>I agree to the terms</FormField.Label>
                                 <FormField.Description>
-                                    By checking this, you agree to the Calbox Terms of Service.
+                                    By checking this, you agree to the Smart Gallery Terms of Service.
                                 </FormField.Description>
                             </View>
                             <FormField.Indicator variant="checkbox">
