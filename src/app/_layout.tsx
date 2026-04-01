@@ -19,6 +19,12 @@ Uniwind.setTheme('tagged-light');
 
 SplashScreen.preventAutoHideAsync();
 
+const ALLOWED_PREFIXES = ["/home", "/photo-detail", "/photo-edit", "/albums", "/people", "/calendar", "/profile"];
+
+function isAllowedPath(path: string) {
+  return ALLOWED_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
 function RootLayoutNav() {
   const { profile, isLoading, isLoggedIn } = useAuthContext();
   const segments = useSegments();
@@ -41,7 +47,7 @@ function RootLayoutNav() {
       hasBootstrappedNavigation.current = true;
 
       if (!isSupabaseConfigured) {
-        if (pathname !== "/home") {
+        if (!isAllowedPath(pathname)) {
           router.replace("/home");
         }
       } else if (!isLoggedIn) {
@@ -61,7 +67,7 @@ function RootLayoutNav() {
     }
 
     if (!isSupabaseConfigured) {
-      if (pathname !== "/home") {
+      if (!isAllowedPath(pathname)) {
         router.replace("/home");
       }
     } else if (!isLoggedIn) {

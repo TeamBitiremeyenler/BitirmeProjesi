@@ -8,17 +8,16 @@ import { useTranslation } from "react-i18next";
 import { trackEvent } from "@/src/mixpanel";
 import { supabase } from "@/lib/supabase";
 import { useAuthContext } from "@/src/hooks/auth-hooks";
-import ProfilePage from "@/src/ready-to-use-screens/input/routes/profile"
+import { goBackOrReplace } from "@/src/lib/navigation";
 
 export default function Profile() {
     const { profile } = useAuthContext();
-    console.log("profile geldi -> ", profile)
     const { t } = useTranslation();
     const router = useRouter();
 
     const handleBack = () => {
         trackEvent("go_back_from_profile");
-        router.replace("/home")
+        goBackOrReplace(router, "/home");
     };
 
     const navigateToUpgrade = () => {

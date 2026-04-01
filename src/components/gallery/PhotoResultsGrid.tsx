@@ -1,6 +1,5 @@
 import { FlashList } from '@shopify/flash-list';
-import { Image } from 'expo-image';
-import { Pressable, StyleSheet } from 'react-native';
+import { Image as RNImage, Pressable, StyleSheet, Text, View } from 'react-native';
 
 export type SearchResultPhoto = {
     id: string;
@@ -19,6 +18,11 @@ const COLUMNS = 3;
 const GAP = 2;
 
 export function PhotoResultsGrid({ photos, onPress }: Props) {
+    const formatScore = (score: number) => {
+        const normalized = score > 1 ? score / 100 : score;
+        return `${Math.round(Math.max(0, Math.min(1, normalized)) * 100)}%`;
+    };
+
     return (
         <FlashList
             data={photos}
@@ -33,12 +37,16 @@ export function PhotoResultsGrid({ photos, onPress }: Props) {
                         { marginRight: (index + 1) % COLUMNS === 0 ? 0 : GAP },
                     ]}
                 >
-                    <Image
+                    <RNImage
                         source={{ uri: item.uri }}
                         style={styles.image}
-                        contentFit="cover"
-                        transition={120}
+                        resizeMode="cover"
                     />
+                    {typeof item.score === 'number' ? (
+                        <View style={styles.scoreBadge}>
+                            <Text style={styles.scoreText}>{formatScore(item.score)} match</Text>
+                        </View>
+                    ) : null}
                 </Pressable>
             )}
         />
@@ -60,5 +68,19 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
         backgroundColor: '#f2f2f2',
+    },
+    scoreBadge: {
+        position: 'absolute',
+        left: 8,
+        bottom: 8,
+        borderRadius: 999,
+        backgroundColor: 'rgba(17,24,39,0.78)',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+    },
+    scoreText: {
+        color: '#fff',
+        fontSize: 11,
+        fontWeight: '700',
     },
 });

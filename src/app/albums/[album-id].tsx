@@ -16,6 +16,7 @@ import { ChevronLeft } from 'lucide-react-native';
 
 import { PhotoThumbnail } from '@/src/components/gallery/PhotoThumbnail';
 import type { Asset } from '@/src/lib/media-library';
+import { goBackOrReplace } from '@/src/lib/navigation';
 
 const COLUMNS = 3;
 const GAP = 2;
@@ -38,7 +39,7 @@ export default function AlbumDetailScreen() {
     const hasMoreRef = useRef(true);
 
     const handleBack = useCallback(() => {
-        router.replace('/albums');
+        goBackOrReplace(router, '/albums');
     }, [router]);
 
     const load = useCallback(async (reset = false) => {
@@ -95,7 +96,12 @@ export default function AlbumDetailScreen() {
                 <TouchableOpacity onPress={handleBack} style={styles.iconBtn}>
                     <ChevronLeft size={24} color="#000" />
                 </TouchableOpacity>
-                <Text style={styles.title} numberOfLines={1}>{album?.title ?? 'Album'}</Text>
+                <View style={styles.headerText}>
+                    <Text style={styles.title} numberOfLines={1}>{album?.title ?? 'Album'}</Text>
+                    <Text style={styles.subtitle}>
+                        {album?.assetCount ?? assets.length} photos
+                    </Text>
+                </View>
                 <View style={styles.iconBtn} />
             </View>
 
@@ -139,7 +145,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 8, paddingVertical: 8,
     },
     iconBtn: { padding: 8, width: 40 },
-    title: { flex: 1, fontSize: 17, fontWeight: '700', textAlign: 'center' },
+    headerText: { flex: 1, alignItems: 'center', gap: 2 },
+    title: { fontSize: 17, fontWeight: '700', textAlign: 'center', color: '#111827' },
+    subtitle: { fontSize: 12, color: '#6b7280' },
     row: { flexDirection: 'row', gap: GAP, marginBottom: GAP },
     footer: { paddingVertical: 20, alignItems: 'center' },
 });

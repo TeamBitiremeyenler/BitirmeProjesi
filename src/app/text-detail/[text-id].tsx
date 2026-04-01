@@ -2,8 +2,9 @@ import { router, useLocalSearchParams } from "expo-router";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import PageProvider from "@/src/components/page-provider";
 import { ChevronLeft, MoreVertical, Pencil, Trash2 } from "lucide-react-native";
-import { Select, Chip, Button } from "heroui-native"; // Import Select
+import { Select, Chip } from "heroui-native"; // Import Select
 import { useTranslation } from "react-i18next";
+import { goBackOrReplace } from "@/src/lib/navigation";
 
 export default function TextDetail() {
     const { "text-id": textId } = useLocalSearchParams<{ "text-id": string }>();
@@ -29,7 +30,7 @@ export default function TextDetail() {
     return (
         <PageProvider>
             <View className="flex flex-row items-center justify-between">
-                <TouchableOpacity onPress={() => router.replace('/home')}>
+                <TouchableOpacity onPress={() => goBackOrReplace(router, '/home')}>
                     <ChevronLeft size={24} color="#000" />
                 </TouchableOpacity>
 

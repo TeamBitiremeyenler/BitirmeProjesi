@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
     ActivityIndicator,
     Alert,
+    AppState,
+    BackHandler,
     Dimensions,
     Linking,
     RefreshControl,
@@ -13,9 +15,15 @@ import {
 import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import * as MediaLibrary from 'expo-media-library';
+import { useFocusEffect } from '@react-navigation/native';
+import { X, Trash2, Share2 } from 'lucide-react-native';
+import Share from 'react-native-share';
+import * as FileSystem from 'expo-file-system/legacy';
 
 import {
     fetchPhotos,
+    getAssetById,
     getMediaPermissionState,
     groupByDate,
     isExpoGoStoreClient,
@@ -25,6 +33,17 @@ import {
 import { uploadPickedPhotoForSearch } from '@/src/lib/api/upload';
 import { listPickedAssets } from '@/src/lib/local-sync-store';
 import { MOCK_PHOTOS } from '@/src/lib/mock-photos';
+import {
+    appendCachedLibraryAssets,
+    replaceCachedLibraryAssets,
+    replaceCachedPickedAssets,
+    warmRemainingLibraryAssets,
+} from '@/src/lib/gallery-cache';
+import {
+    listSavedLibraryAssets,
+    removeSavedLibraryAsset,
+    subscribeSavedLibraryAssets,
+} from '@/src/lib/saved-assets-store';
 import { PhotoThumbnail } from './PhotoThumbnail';
 
 const COLUMNS = 3;
@@ -68,15 +87,15 @@ function toPickedAsset(entry: { id: string; asset: { uri: string; filename?: str
     } as Asset;
 }
 
-function mergeAssetsByUri(primaryAssets: Asset[], pickedAssets: Asset[]): Asset[] {
-    const sorted = [...pickedAssets, ...primaryAssets].sort(
+function mergeAssets(primaryAssets: Asset[], secondaryAssets: Asset[]): Asset[] {
+    const sorted = [...secondaryAssets, ...primaryAssets].sort(
         (left, right) => (right.creationTime ?? 0) - (left.creationTime ?? 0)
     );
     const seen = new Set<string>();
     const merged: Asset[] = [];
 
     for (const asset of sorted) {
-        const key = asset.uri || asset.id;
+        const key = asset.id || asset.uri;
         if (seen.has(key)) continue;
         seen.add(key);
         merged.push(asset);
@@ -96,9 +115,27 @@ export function GalleryGrid() {
     const [isPickingPhoto, setIsPickingPhoto] = useState(false);
     const [pickerStatus, setPickerStatus] = useState<string | null>(null);
     const [pickedAssets, setPickedAssets] = useState<Asset[]>([]);
+    const [savedLibraryAssets, setSavedLibraryAssets] = useState<Asset[]>([]);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const cursorRef = useRef<string | undefined>(undefined);
     const hasMoreRef = useRef(true);
+    const appStateRef = useRef(AppState.currentState);
+    const refreshPromiseRef = useRef<Promise<void> | null>(null);
+    const lastRefreshAtRef = useRef(0);
     const usesExpoGoFallback = permStatus === 'denied' && isExpoGoStoreClient();
+
+    const selectionMode = selectedIds.size > 0;
+
+    useEffect(() => {
+        if (!selectionMode) return;
+
+        const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+            setSelectedIds(new Set());
+            return true;
+        });
+
+        return () => handler.remove();
+    }, [selectionMode]);
 
     const refreshPickedAssets = useCallback(async () => {
         const entries = await listPickedAssets();
@@ -106,6 +143,12 @@ export function GalleryGrid() {
             .map(toPickedAsset)
             .filter((asset): asset is Asset => asset !== null);
         setPickedAssets(mapped);
+        replaceCachedPickedAssets(entries);
+    }, []);
+
+    const refreshSavedLibraryAssets = useCallback(async () => {
+        const saved = await listSavedLibraryAssets();
+        setSavedLibraryAssets(saved);
     }, []);
 
     const load = useCallback(async (reset = false) => {
@@ -117,18 +160,58 @@ export function GalleryGrid() {
         setAssets((prev) => (reset ? page.assets : [...prev, ...page.assets]));
         cursorRef.current = page.endCursor;
         hasMoreRef.current = page.hasNextPage;
+
+        if (reset) {
+            replaceCachedLibraryAssets(page.assets, page.endCursor, page.hasNextPage);
+        } else {
+            appendCachedLibraryAssets(page.assets, page.endCursor, page.hasNextPage);
+        }
     }, []);
+
+    const refreshLibraryAssets = useCallback(async () => {
+        if (permStatus !== 'granted') return;
+
+        if (refreshPromiseRef.current) {
+            await refreshPromiseRef.current;
+            return;
+        }
+
+        cursorRef.current = undefined;
+        hasMoreRef.current = true;
+
+        const refreshPromise = load(true)
+            .then(() => {
+                warmRemainingLibraryAssets().catch(() => undefined);
+            })
+            .finally(() => {
+                refreshPromiseRef.current = null;
+            });
+
+        refreshPromiseRef.current = refreshPromise;
+        await refreshPromise;
+    }, [load, permStatus]);
 
     const startLoad = useCallback(() => {
         setIsLoading(true);
         cursorRef.current = undefined;
         hasMoreRef.current = true;
-        load(true).finally(() => setIsLoading(false));
+        load(true)
+            .finally(() => setIsLoading(false))
+            .then(() => {
+                warmRemainingLibraryAssets().catch(() => undefined);
+            });
     }, [load]);
 
     useEffect(() => {
         refreshPickedAssets().catch(() => setPickedAssets([]));
     }, [refreshPickedAssets]);
+
+    useEffect(() => {
+        refreshSavedLibraryAssets().catch(() => setSavedLibraryAssets([]));
+        return subscribeSavedLibraryAssets(() => {
+            refreshSavedLibraryAssets().catch(() => undefined);
+        });
+    }, [refreshSavedLibraryAssets]);
 
     useEffect(() => {
         getMediaPermissionState()
@@ -162,6 +245,55 @@ export function GalleryGrid() {
     useEffect(() => {
         if (permStatus === 'granted') startLoad();
     }, [permStatus, startLoad]);
+
+    useEffect(() => {
+        if (permStatus !== 'granted') return;
+
+        replaceCachedLibraryAssets(
+            mergeAssets(assets, savedLibraryAssets),
+            cursorRef.current,
+            hasMoreRef.current,
+        );
+    }, [assets, permStatus, savedLibraryAssets]);
+
+    useEffect(() => {
+        if (permStatus !== 'granted') return;
+
+        const triggerRefresh = () => {
+            const now = Date.now();
+            if (now - lastRefreshAtRef.current < 700) return;
+            lastRefreshAtRef.current = now;
+            refreshLibraryAssets().catch(() => undefined);
+        };
+
+        const appStateSubscription = AppState.addEventListener('change', (nextAppState) => {
+            const wasBackgrounded = /inactive|background/.test(appStateRef.current);
+            appStateRef.current = nextAppState;
+
+            if (wasBackgrounded && nextAppState === 'active') {
+                triggerRefresh();
+            }
+        });
+
+        const mediaLibrarySubscription = MediaLibrary.addListener(() => {
+            triggerRefresh();
+        });
+
+        return () => {
+            appStateSubscription.remove();
+            mediaLibrarySubscription.remove();
+        };
+    }, [permStatus, refreshLibraryAssets]);
+
+    useFocusEffect(useCallback(() => {
+        if (permStatus !== 'granted') return undefined;
+
+        refreshLibraryAssets().catch(() => undefined);
+        refreshPickedAssets().catch(() => undefined);
+        refreshSavedLibraryAssets().catch(() => undefined);
+
+        return undefined;
+    }, [permStatus, refreshLibraryAssets, refreshPickedAssets, refreshSavedLibraryAssets]));
 
     const handleAllow = async () => {
         if (isExpoGoStoreClient()) {
@@ -217,11 +349,13 @@ export function GalleryGrid() {
 
     const handleRefresh = useCallback(async () => {
         setIsRefreshing(true);
-        cursorRef.current = undefined;
-        hasMoreRef.current = true;
-        await Promise.all([load(true), refreshPickedAssets()]);
+        await Promise.all([
+            refreshLibraryAssets(),
+            refreshPickedAssets(),
+            refreshSavedLibraryAssets(),
+        ]);
         setIsRefreshing(false);
-    }, [load, refreshPickedAssets]);
+    }, [refreshLibraryAssets, refreshPickedAssets, refreshSavedLibraryAssets]);
 
     const handleEndReached = useCallback(async () => {
         if (isLoadingMore || !hasMoreRef.current) return;
@@ -231,16 +365,122 @@ export function GalleryGrid() {
         setIsLoadingMore(false);
     }, [isLoadingMore, load]);
 
-    const handlePress = useCallback((asset: Asset) => {
-        router.push(`/photo-detail/${asset.id}`);
-    }, [router]);
+    // --- Selection logic ---
 
+    const handleLongPress = useCallback((asset: Asset) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            next.add(asset.id);
+            return next;
+        });
+    }, []);
+
+    const toggleSelection = useCallback((asset: Asset) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(asset.id)) {
+                next.delete(asset.id);
+            } else {
+                next.add(asset.id);
+            }
+            return next;
+        });
+    }, []);
+
+    const handlePress = useCallback((asset: Asset) => {
+        if (selectionMode) {
+            toggleSelection(asset);
+        } else {
+            router.push(`/photo-detail/${asset.id}`);
+        }
+    }, [router, selectionMode, toggleSelection]);
+
+    const handleClearSelection = useCallback(() => {
+        setSelectedIds(new Set());
+    }, []);
+
+    const handleDeleteSelected = useCallback(() => {
+        const count = selectedIds.size;
+        if (count === 0) return;
+
+        Alert.alert(
+            'Delete Photos',
+            `${count} photo${count > 1 ? 's' : ''} will be permanently deleted from your device.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            const { status } = await MediaLibrary.requestPermissionsAsync();
+                            if (status !== 'granted') {
+                                Alert.alert('Permission Required', 'Storage permission is needed to delete photos.');
+                                return;
+                            }
+                            await MediaLibrary.deleteAssetsAsync([...selectedIds]);
+                            for (const id of selectedIds) {
+                                await removeSavedLibraryAsset(id);
+                            }
+                            setSelectedIds(new Set());
+                            await refreshLibraryAssets();
+                        } catch (e) {
+                            console.error('Bulk delete error:', e);
+                            Alert.alert('Error', 'Could not delete the selected photos.');
+                        }
+                    },
+                },
+            ],
+        );
+    }, [selectedIds, refreshLibraryAssets]);
+
+    const handleShareSelected = useCallback(async () => {
+        if (selectedIds.size === 0) return;
+
+        const tempFiles: string[] = [];
+        try {
+            for (const id of selectedIds) {
+                try {
+                    const info = await getAssetById(id);
+                    if (!info) continue;
+                    const sourceUri = info.localUri ?? info.uri;
+                    const ext = (info.filename?.split('.').pop() ?? 'jpg').toLowerCase();
+                    const tempPath = `${FileSystem.cacheDirectory}share-${id.replace(/[^a-zA-Z0-9]/g, '_')}.${ext}`;
+                    await FileSystem.copyAsync({ from: sourceUri, to: tempPath });
+                    tempFiles.push(tempPath);
+                } catch {
+                    // Skip assets that can't be resolved
+                }
+            }
+
+            if (tempFiles.length === 0) {
+                Alert.alert('Error', 'Could not resolve the selected photos.');
+                return;
+            }
+
+            const fileUris = tempFiles.map((p) => (p.startsWith('file://') ? p : `file://${p}`));
+            await Share.open({ urls: fileUris, type: 'image/*' });
+        } catch {
+            // User cancelled share sheet
+        } finally {
+            for (const f of tempFiles) {
+                FileSystem.deleteAsync(f, { idempotent: true }).catch(() => undefined);
+            }
+        }
+    }, [selectedIds]);
+
+    // --- End selection logic ---
+
+    const combinedLibraryAssets = useMemo(
+        () => mergeAssets(assets, savedLibraryAssets),
+        [assets, savedLibraryAssets]
+    );
     const combinedAssets = useMemo(
-        () => mergeAssetsByUri(assets, pickedAssets),
-        [assets, pickedAssets]
+        () => mergeAssets(combinedLibraryAssets, pickedAssets),
+        [combinedLibraryAssets, pickedAssets]
     );
     const deniedAssets = useMemo(
-        () => mergeAssetsByUri(MOCK_PHOTOS, pickedAssets),
+        () => mergeAssets(MOCK_PHOTOS, pickedAssets),
         [pickedAssets]
     );
     const listItems = useMemo(() => buildListItems(groupByDate(combinedAssets)), [combinedAssets]);
@@ -257,7 +497,15 @@ export function GalleryGrid() {
         return (
             <View style={styles.row}>
                 {item.assets.map((asset) => (
-                    <PhotoThumbnail key={asset.id} asset={asset} size={THUMB_SIZE} onPress={handlePress} />
+                    <PhotoThumbnail
+                        key={asset.id}
+                        asset={asset}
+                        size={THUMB_SIZE}
+                        onPress={handlePress}
+                        onLongPress={handleLongPress}
+                        selected={selectedIds.has(asset.id)}
+                        selectionMode={selectionMode}
+                    />
                 ))}
                 {item.assets.length < COLUMNS
                     ? Array.from({ length: COLUMNS - item.assets.length }).map((_, index) => (
@@ -266,7 +514,26 @@ export function GalleryGrid() {
                     : null}
             </View>
         );
-    }, [handlePress]);
+    }, [handlePress, handleLongPress, selectedIds, selectionMode]);
+
+    const selectionToolbar = selectionMode ? (
+        <View style={styles.selectionBar}>
+            <View style={styles.selectionBarLeft}>
+                <TouchableOpacity onPress={handleClearSelection} style={styles.selectionBarBtn}>
+                    <X size={20} color="#fff" />
+                </TouchableOpacity>
+                <Text style={styles.selectionBarText}>{selectedIds.size} selected</Text>
+            </View>
+            <View style={styles.selectionBarRight}>
+                <TouchableOpacity onPress={handleShareSelected} style={styles.selectionBarBtn}>
+                    <Share2 size={20} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleDeleteSelected} style={styles.selectionBarBtn}>
+                    <Trash2 size={20} color="#ef4444" />
+                </TouchableOpacity>
+            </View>
+        </View>
+    ) : null;
 
     if (permStatus === 'checking' || isLoading) {
         return (
@@ -330,22 +597,26 @@ export function GalleryGrid() {
     }
 
     return (
-        <FlashList
-            data={listItems}
-            renderItem={renderItem}
-            getItemType={(item) => item.type}
-            onEndReached={handleEndReached}
-            onEndReachedThreshold={0.4}
-            showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />}
-            ListFooterComponent={
-                isLoadingMore ? (
-                    <View style={styles.footer}>
-                        <ActivityIndicator size="small" />
-                    </View>
-                ) : null
-            }
-        />
+        <View style={{ flex: 1 }}>
+            {selectionToolbar}
+            <FlashList
+                data={listItems}
+                renderItem={renderItem}
+                extraData={selectedIds}
+                getItemType={(item) => item.type}
+                onEndReached={handleEndReached}
+                onEndReachedThreshold={0.4}
+                showsVerticalScrollIndicator={false}
+                refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />}
+                ListFooterComponent={
+                    isLoadingMore ? (
+                        <View style={styles.footer}>
+                            <ActivityIndicator size="small" />
+                        </View>
+                    ) : null
+                }
+            />
+        </View>
     );
 }
 
@@ -362,6 +633,32 @@ const styles = StyleSheet.create({
     },
     row: { flexDirection: 'row', gap: GAP, marginBottom: GAP },
     footer: { paddingVertical: 20, alignItems: 'center' },
+    selectionBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#111827',
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+    },
+    selectionBarLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    selectionBarRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
+    },
+    selectionBarBtn: {
+        padding: 4,
+    },
+    selectionBarText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '600',
+    },
     mockBanner: {
         gap: 10,
         backgroundColor: '#f0f0ff',

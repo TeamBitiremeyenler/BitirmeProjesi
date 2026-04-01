@@ -15,6 +15,7 @@ import { Edit3, ChevronLeft, Check, X } from 'lucide-react-native';
 import { PhotoResultsGrid, type SearchResultPhoto } from '@/src/components/gallery/PhotoResultsGrid';
 import { getPersonCluster, renamePersonCluster, type PeopleCluster } from '@/src/lib/api/people';
 import { resolveLocalPhoto } from '@/src/lib/local-photo-resolver';
+import { goBackOrReplace } from '@/src/lib/navigation';
 
 function formatErrorMessage(error: unknown): string {
     if (error instanceof Error) {
@@ -114,7 +115,7 @@ export default function PersonDetailScreen() {
         return (
             <View style={[styles.center, { paddingTop: insets.top }]}>
                 <Text style={styles.errorTitle}>{error ?? 'Person not found.'}</Text>
-                <TouchableOpacity onPress={() => router.replace('/people' as any)} style={styles.secondaryButton}>
+                <TouchableOpacity onPress={() => goBackOrReplace(router, '/people')} style={styles.secondaryButton}>
                     <Text style={styles.secondaryButtonText}>Back to People</Text>
                 </TouchableOpacity>
             </View>
@@ -124,7 +125,7 @@ export default function PersonDetailScreen() {
     return (
         <View style={[styles.root, { paddingTop: insets.top }]}>
             <View style={styles.topBar}>
-                <TouchableOpacity onPress={() => router.replace('/people' as any)} style={styles.iconBtn}>
+                <TouchableOpacity onPress={() => goBackOrReplace(router, '/people')} style={styles.iconBtn}>
                     <ChevronLeft size={24} color="#111827" />
                 </TouchableOpacity>
                 <Text style={styles.topTitle} numberOfLines={1}>

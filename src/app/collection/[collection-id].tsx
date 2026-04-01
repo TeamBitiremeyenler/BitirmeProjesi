@@ -4,6 +4,7 @@ import PageProvider from "@/src/components/page-provider";
 import { ChevronLeft, MoreVertical, Pencil, Trash2 } from "lucide-react-native";
 import { Select } from "heroui-native"; // Import Select
 import { useTranslation } from "react-i18next";
+import { goBackOrReplace } from "@/src/lib/navigation";
 
 export default function Collection() {
     const { "collection-id": collectionId } = useLocalSearchParams<{ "collection-id": string }>();
@@ -22,7 +23,7 @@ export default function Collection() {
     return (
         <PageProvider>
             <View className="flex flex-row items-center justify-between">
-                <TouchableOpacity onPress={() => router.replace('/home')}>
+                <TouchableOpacity onPress={() => goBackOrReplace(router, '/home')}>
                     <ChevronLeft size={24} color="#000" />
                 </TouchableOpacity>
 

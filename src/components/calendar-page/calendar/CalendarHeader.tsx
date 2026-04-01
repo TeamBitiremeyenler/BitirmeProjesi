@@ -2,14 +2,14 @@
  * CalendarHeader Component
  */
 
-import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { getAgendaColors } from "./theme";
-import { ArrowLeft, ChevronLeft } from "lucide-react-native";
+import { ChevronLeft } from "lucide-react-native";
 import { router } from "expo-router";
+import { goBackOrReplace } from "@/src/lib/navigation";
 
 interface CalendarHeaderProps {
     selectedDate: string;
@@ -75,16 +75,10 @@ function isToday(dateString: string): boolean {
 export function CalendarHeader({
     selectedDate,
     isDarkMode,
-    onToggleTheme,
     onTodayPress,
 }: CalendarHeaderProps) {
     const colors = getAgendaColors(isDarkMode);
     const isSelectedToday = isToday(selectedDate);
-
-    const handleToggle = () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        onToggleTheme();
-    };
 
     const handleTodayPress = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -95,7 +89,7 @@ export function CalendarHeader({
         <View
             style={[styles.container, { backgroundColor: colors.calendarHeader }]}
         >
-            <TouchableOpacity onPress={() => router.replace("/home")}>
+            <TouchableOpacity onPress={() => goBackOrReplace(router, "/home")}>
                 <ChevronLeft size={24} />
             </TouchableOpacity>
             {/* Title */}

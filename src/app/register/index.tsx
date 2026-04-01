@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { View, ScrollView, Text, TouchableOpacity } from 'react-native';
+import { Image as RNImage, View, ScrollView, Text, TouchableOpacity } from 'react-native';
 import { TextField, Button, FormField, Checkbox } from 'heroui-native';
 import { supabase } from '@/lib/supabase';
 import { useRouter, Link } from 'expo-router';
 import PageProvider from '@/src/components/page-provider';
-import { Image } from 'expo-image';
 import { ChevronLeft } from 'lucide-react-native';
+import { goBackOrReplace } from '@/src/lib/navigation';
 
 export default function RegisterScreen() {
     const [email, setEmail] = useState('');
@@ -45,11 +45,11 @@ export default function RegisterScreen() {
                 className="flex-1">
                 <View className="gap-6">
                     <View className='mb-4'>
-                        <TouchableOpacity onPress={() => router.back()}>
+                        <TouchableOpacity onPress={() => goBackOrReplace(router, "/")}>
                             <ChevronLeft size={24} />
                         </TouchableOpacity>
                     </View>
-                    <Image
+                    <RNImage
                         style={{ width: 48, height: 48 }}
                         source={require("@/assets/logo-dark.png")}
                     />

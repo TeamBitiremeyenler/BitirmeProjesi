@@ -2,19 +2,20 @@ import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
+    Image as RNImage,
     RefreshControl,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 
 import { listPeopleClusters, type PeopleCluster } from '@/src/lib/api/people';
 import { resolveLocalPhoto } from '@/src/lib/local-photo-resolver';
+import { goBackOrReplace } from '@/src/lib/navigation';
 
 type PersonCard = PeopleCluster & {
     coverUri: string | null;
@@ -97,22 +98,36 @@ export default function PeopleScreen() {
     return (
         <View style={[styles.root, { paddingTop: insets.top }]}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.replace('/home')} style={styles.iconBtn}>
+                <TouchableOpacity onPress={() => goBackOrReplace(router, '/home')} style={styles.iconBtn}>
                     <ChevronLeft size={24} color="#111827" />
                 </TouchableOpacity>
                 <View style={styles.headerText}>
                     <Text style={styles.title}>People</Text>
                     <Text style={styles.subtitle}>
-                        {source === 'local_store'
+                        {people.length > 0
+                            ? `${people.length} people clusters`
+                            : source === 'local_store'
+                                ? 'Showing the local clustering fallback.'
+                                : 'Auto-grouped faces from indexed photos.'}
+                    </Text>
+                    {people.length > 0 ? (
+                        <Text style={styles.caption}>
+                            {source === 'local_store'
                             ? 'Showing the local clustering fallback.'
                             : 'Auto-grouped faces from indexed photos.'}
-                    </Text>
+                        </Text>
+                    ) : null}
                 </View>
             </View>
 
             {error ? (
                 <View style={styles.banner}>
                     <Text style={styles.bannerText}>{error}</Text>
+                    <TouchableOpacity onPress={handleRefresh} disabled={isRefreshing}>
+                        <Text style={styles.bannerAction}>
+                            {isRefreshing ? 'Refreshing...' : 'Retry'}
+                        </Text>
+                    </TouchableOpacity>
                 </View>
             ) : null}
 
@@ -137,7 +152,7 @@ export default function PeopleScreen() {
                             onPress={() => router.push(`/people/${item.id}` as any)}
                         >
                             {item.coverUri ? (
-                                <Image source={{ uri: item.coverUri }} style={styles.cardImage} contentFit="cover" />
+                                <RNImage source={{ uri: item.coverUri }} style={styles.cardImage} resizeMode="cover" />
                             ) : (
                                 <View style={[styles.cardImage, styles.placeholder]}>
                                     <Text style={styles.placeholderText}>
@@ -193,6 +208,12 @@ const styles = StyleSheet.create({
     subtitle: {
         fontSize: 13,
         lineHeight: 19,
+        color: '#111827',
+        fontWeight: '600',
+    },
+    caption: {
+        fontSize: 13,
+        lineHeight: 19,
         color: '#6b7280',
     },
     banner: {
@@ -207,6 +228,12 @@ const styles = StyleSheet.create({
         color: '#c2410c',
         fontSize: 12,
         lineHeight: 18,
+    },
+    bannerAction: {
+        marginTop: 8,
+        color: '#9a3412',
+        fontSize: 12,
+        fontWeight: '700',
     },
     list: {
         paddingHorizontal: 16,

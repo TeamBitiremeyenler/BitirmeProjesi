@@ -115,3 +115,18 @@ export function groupByDate(assets: Asset[]): { title: string; data: Asset[] }[]
 export async function getAssetById(id: string): Promise<AssetInfo> {
     return MediaLibrary.getAssetInfoAsync(id);
 }
+
+export function getVersionedMediaUri(uri: string, version?: number | null): string {
+    if (!uri) return uri;
+
+    const normalizedVersion =
+        typeof version === 'number' && Number.isFinite(version) && version > 0
+            ? Math.trunc(version)
+            : 0;
+
+    if (!normalizedVersion) return uri;
+
+    return uri.includes('#')
+        ? `${uri}&sgv=${normalizedVersion}`
+        : `${uri}#sgv=${normalizedVersion}`;
+}

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Keyboard,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -16,6 +17,11 @@ import { GalleryGrid } from '@/src/components/gallery/GalleryGrid';
 import { PhotoResultsGrid, type SearchResultPhoto } from '@/src/components/gallery/PhotoResultsGrid';
 import { clearRemoteSearchCache, searchPhotos } from '@/src/lib/api/search';
 import { clearSyncMap } from '@/src/lib/local-sync-store';
+import {
+    clearRecentSearchQueries,
+    listRecentSearchQueries,
+    saveRecentSearchQuery,
+} from '@/src/lib/search-history';
 
 export default function HomePage() {
     const router = useRouter();
@@ -26,10 +32,17 @@ export default function HomePage() {
     const [isSearching, setIsSearching] = useState(false);
     const [isClearingLocalCache, setIsClearingLocalCache] = useState(false);
     const [searchHint, setSearchHint] = useState<string | null>(null);
+    const [recentSearches, setRecentSearches] = useState<string[]>([]);
     const isSearchMode = submittedQuery.length > 0;
 
-    const handleSearch = async () => {
-        const trimmedQuery = query.trim();
+    useEffect(() => {
+        listRecentSearchQueries()
+            .then(setRecentSearches)
+            .catch(() => setRecentSearches([]));
+    }, []);
+
+    const runSearch = useCallback(async (rawQuery: string) => {
+        const trimmedQuery = rawQuery.trim();
         if (!trimmedQuery) {
             setSubmittedQuery('');
             setResults([]);
@@ -38,12 +51,15 @@ export default function HomePage() {
         }
 
         Keyboard.dismiss();
+        setQuery(trimmedQuery);
         setSubmittedQuery(trimmedQuery);
         setIsSearching(true);
 
         try {
             const response = await searchPhotos(trimmedQuery);
             setResults(response.photos);
+            const nextRecentSearches = await saveRecentSearchQuery(trimmedQuery);
+            setRecentSearches(nextRecentSearches);
 
             if (!response.usedFallback) {
                 setSearchHint(null);
@@ -59,14 +75,27 @@ export default function HomePage() {
         } finally {
             setIsSearching(false);
         }
-    };
+    }, []);
 
-    const clearSearch = () => {
+    const handleSearch = useCallback(async () => {
+        await runSearch(query);
+    }, [query, runSearch]);
+
+    const clearSearch = useCallback(() => {
         setQuery('');
         setSubmittedQuery('');
         setResults([]);
         setSearchHint(null);
-    };
+    }, []);
+
+    const handleSuggestionPress = useCallback(async (suggestion: string) => {
+        await runSearch(suggestion);
+    }, [runSearch]);
+
+    const handleClearRecentSearches = useCallback(async () => {
+        await clearRecentSearchQueries();
+        setRecentSearches([]);
+    }, []);
 
     const clearLocalCache = async () => {
         setIsClearingLocalCache(true);
@@ -126,10 +155,53 @@ export default function HomePage() {
                         </TouchableOpacity>
                     ) : null}
                 </View>
-                <TouchableOpacity style={styles.searchAction} onPress={handleSearch}>
+                <TouchableOpacity
+                    style={[styles.searchAction, query.trim().length === 0 && styles.searchActionDisabled]}
+                    onPress={handleSearch}
+                    disabled={query.trim().length === 0}
+                >
                     <Text style={styles.searchActionText}>Go</Text>
                 </TouchableOpacity>
             </View>
+
+            {!isSearchMode ? (
+                <View>
+                    {recentSearches.length > 0 ? (
+                        <View style={styles.recentSection}>
+                            <View style={styles.sectionHeader}>
+                                <Text style={styles.sectionTitle}>Recent Searches</Text>
+                                <TouchableOpacity onPress={handleClearRecentSearches}>
+                                    <Text style={styles.sectionAction}>Clear</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={styles.suggestionRow}
+                            >
+                                {recentSearches.map((suggestion) => (
+                                    <TouchableOpacity
+                                        key={suggestion}
+                                        style={[styles.suggestionChip, styles.recentChip]}
+                                        onPress={() => handleSuggestionPress(suggestion)}
+                                    >
+                                        <Text style={styles.suggestionText}>{suggestion}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    ) : null}
+                </View>
+            ) : (
+                <View style={styles.resultsBar}>
+                    <Text style={styles.resultsText}>
+                        {isSearching ? 'Searching...' : `${results.length} ${results.length === 1 ? 'match' : 'matches'} for "${submittedQuery}"`}
+                    </Text>
+                    <TouchableOpacity onPress={clearSearch}>
+                        <Text style={styles.resultsAction}>Clear</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
 
             {searchHint ? (
                 <View style={styles.banner}>
@@ -223,9 +295,70 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         paddingHorizontal: 16,
     },
+    searchActionDisabled: {
+        opacity: 0.45,
+    },
     searchActionText: {
         color: '#fff',
         fontSize: 14,
+        fontWeight: '700',
+    },
+    suggestionRow: {
+        gap: 8,
+        paddingHorizontal: 16,
+        paddingBottom: 12,
+    },
+    recentSection: {
+        paddingTop: 2,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingBottom: 8,
+    },
+    sectionTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#374151',
+        letterSpacing: 0.2,
+    },
+    sectionAction: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#4f46e5',
+    },
+    suggestionChip: {
+        borderRadius: 999,
+        backgroundColor: '#eef2ff',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+    },
+    recentChip: {
+        backgroundColor: '#ede9fe',
+    },
+    suggestionText: {
+        color: '#4338ca',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    resultsBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingBottom: 12,
+        gap: 12,
+    },
+    resultsText: {
+        flex: 1,
+        color: '#4b5563',
+        fontSize: 13,
+    },
+    resultsAction: {
+        color: '#4f46e5',
+        fontSize: 13,
         fontWeight: '700',
     },
     banner: {
