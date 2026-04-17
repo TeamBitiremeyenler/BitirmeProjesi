@@ -19,13 +19,20 @@ class Settings(BaseSettings):
     QDRANT_HOST: Optional[str] = None
     DEV_BYPASS_AUTH: bool = True
 
+    # Phase 7 — AI / GenAI
+    OPENAI_API_KEY: Optional[str] = None
+    AI_RATE_LIMIT_PER_HOUR: int = 10
+
     model_config = SettingsConfigDict(
         env_file=env_path,
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
-    @field_validator("SUPABASE_URL", "SUPABASE_KEY", "JWT_SECRET", "QDRANT_HOST", mode="before")
+    @field_validator(
+        "SUPABASE_URL", "SUPABASE_KEY", "JWT_SECRET", "QDRANT_HOST", "OPENAI_API_KEY",
+        mode="before",
+    )
     @classmethod
     def normalize_blank_strings(cls, value: Optional[str]) -> Optional[str]:
         if isinstance(value, str) and not value.strip():

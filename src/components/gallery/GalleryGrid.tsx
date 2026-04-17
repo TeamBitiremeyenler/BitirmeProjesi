@@ -7,6 +7,7 @@ import {
     Dimensions,
     Linking,
     RefreshControl,
+    Share,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -18,7 +19,6 @@ import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import { useFocusEffect } from '@react-navigation/native';
 import { X, Trash2, Share2 } from 'lucide-react-native';
-import Share from 'react-native-share';
 import * as FileSystem from 'expo-file-system/legacy';
 
 import {
@@ -437,35 +437,23 @@ export function GalleryGrid() {
     const handleShareSelected = useCallback(async () => {
         if (selectedIds.size === 0) return;
 
-        const tempFiles: string[] = [];
         try {
             for (const id of selectedIds) {
                 try {
                     const info = await getAssetById(id);
                     if (!info) continue;
                     const sourceUri = info.localUri ?? info.uri;
-                    const ext = (info.filename?.split('.').pop() ?? 'jpg').toLowerCase();
-                    const tempPath = `${FileSystem.cacheDirectory}share-${id.replace(/[^a-zA-Z0-9]/g, '_')}.${ext}`;
-                    await FileSystem.copyAsync({ from: sourceUri, to: tempPath });
-                    tempFiles.push(tempPath);
+                    // Built-in Share — works in both Expo Go and dev builds
+                    await Share.share({ url: sourceUri, message: info.filename ?? '' });
+                    // Only share the first selected photo with the built-in dialog
+                    // (built-in Share.share doesn't support multi-file natively)
+                    break;
                 } catch {
                     // Skip assets that can't be resolved
                 }
             }
-
-            if (tempFiles.length === 0) {
-                Alert.alert('Error', 'Could not resolve the selected photos.');
-                return;
-            }
-
-            const fileUris = tempFiles.map((p) => (p.startsWith('file://') ? p : `file://${p}`));
-            await Share.open({ urls: fileUris, type: 'image/*' });
         } catch {
             // User cancelled share sheet
-        } finally {
-            for (const f of tempFiles) {
-                FileSystem.deleteAsync(f, { idempotent: true }).catch(() => undefined);
-            }
         }
     }, [selectedIds]);
 

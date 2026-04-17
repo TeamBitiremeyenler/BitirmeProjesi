@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.endpoints import upload, search, people
+from app.api.endpoints import upload, search, people, ai
 from app.core.config import settings
 import uvicorn
 
@@ -23,6 +23,7 @@ app.add_middleware(
 app.include_router(upload.router, prefix="/api", tags=["Upload"])
 app.include_router(search.router, prefix="/api", tags=["Search"])
 app.include_router(people.router, prefix="/api", tags=["People"])
+app.include_router(ai.router,     prefix="/api", tags=["AI"])
 
 @app.get("/health")
 def health_check():
@@ -30,6 +31,7 @@ def health_check():
         "status": "online",
         "supabase_configured": bool(settings and settings.SUPABASE_URL),
         "qdrant_configured": bool(settings and settings.QDRANT_HOST),
+        "openai_configured": bool(settings and settings.OPENAI_API_KEY),
         "dev_bypass_auth": bool(settings and settings.DEV_BYPASS_AUTH),
     }
 

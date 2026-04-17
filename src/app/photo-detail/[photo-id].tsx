@@ -3,21 +3,30 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
     ActivityIndicator,
     Alert,
+    Animated,
     AppState,
     Dimensions,
     FlatList,
     Image as RNImage,
+    KeyboardAvoidingView,
+    Modal,
     NativeScrollEvent,
     NativeSyntheticEvent,
+    Platform,
+    ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
 import * as Sharing from 'expo-sharing';
-import { ChevronLeft, Pencil, Share2, Trash2, Sparkles } from 'lucide-react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import { ChevronLeft, Pencil, Share2, Trash2, Sparkles, X, Send } from 'lucide-react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { editPhotoWithAI, AIError } from '@/src/lib/api/ai';
 
 import { uploadSearchablePhoto } from '@/src/lib/api/upload';
 import { getGalleryCacheSnapshot, subscribeGalleryCache, warmRemainingLibraryAssets } from '@/src/lib/gallery-cache';
@@ -142,6 +151,16 @@ export default function PhotoDetail() {
     const [thumbPreviewIndex, setThumbPreviewIndex] = useState<number | null>(null);
     const [isThumbRailReady, setIsThumbRailReady] = useState(false);
     const [assetRefreshTick, setAssetRefreshTick] = useState(0);
+
+    // ── AI panel state ────────────────────────────────────────────────
+    const [aiPanelOpen, setAiPanelOpen] = useState(false);
+    const [aiPrompt, setAiPrompt] = useState('');
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiResultB64, setAiResultB64] = useState<string | null>(null);
+    const [aiError, setAiError] = useState<string | null>(null);
+    const [aiCredits, setAiCredits] = useState<number | null>(null);
+    const [isSavingAiResult, setIsSavingAiResult] = useState(false);
+    const aiPanelAnim = useRef(new Animated.Value(0)).current;
     const gallerySignature = useMemo(
         () => galleryPhotos.map((photo) => photo.id).join('|'),
         [galleryPhotos]
@@ -634,6 +653,109 @@ export default function PhotoDetail() {
         }
     }, [activeAsset, currentPhotoId]);
 
+    // ── AI edit handler ───────────────────────────────────────────────
+    const openAiPanel = useCallback(() => {
+        setAiPanelOpen(true);
+        setAiResultB64(null);
+        setAiError(null);
+        setAiPrompt('');
+        Animated.spring(aiPanelAnim, {
+            toValue: 1,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 11,
+        }).start();
+    }, [aiPanelAnim]);
+
+    const closeAiPanel = useCallback(() => {
+        Animated.timing(aiPanelAnim, {
+            toValue: 0,
+            duration: 220,
+            useNativeDriver: true,
+        }).start(() => setAiPanelOpen(false));
+    }, [aiPanelAnim]);
+
+    const handleAskAI = useCallback(async () => {
+        const trimmed = aiPrompt.trim();
+        if (!trimmed || !imageUri) return;
+
+        setAiLoading(true);
+        setAiResultB64(null);
+        setAiError(null);
+
+        // Step 1: Resolve the image to a base64 string.
+        // - Local file:// URIs → read directly
+        // - Remote https:// URLs (e.g. mock/picsum photos) → download to cache first
+        let base64: string;
+        try {
+            const isRemote = imageUri.startsWith('http://') || imageUri.startsWith('https://');
+
+            if (isRemote) {
+                const cacheUri = `${FileSystem.cacheDirectory}ai_input_${Date.now()}.jpg`;
+                await FileSystem.downloadAsync(imageUri, cacheUri);
+                base64 = await FileSystem.readAsStringAsync(cacheUri, {
+                    encoding: FileSystem.EncodingType.Base64,
+                });
+                // Clean up cache file in background
+                FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(() => undefined);
+            } else {
+                base64 = await FileSystem.readAsStringAsync(imageUri, {
+                    encoding: FileSystem.EncodingType.Base64,
+                });
+            }
+        } catch {
+            setAiLoading(false);
+            setAiError('Could not load this photo. Please try again.');
+            return;
+        }
+
+        // Step 2: Send to backend
+        try {
+            const imageDataUri = `data:image/jpeg;base64,${base64}`;
+            const response = await editPhotoWithAI({
+                prompt: trimmed,
+                imageUri: imageDataUri,
+            });
+            setAiResultB64(response.b64);
+            setAiCredits(response.creditsRemaining);
+        } catch (err) {
+            setAiError(err instanceof AIError ? err.message : `Unexpected error: ${String(err)}`);
+        } finally {
+            setAiLoading(false);
+        }
+    }, [aiPrompt, imageUri]);
+
+    const handleSaveAiResult = useCallback(async () => {
+        if (!aiResultB64) return;
+        setIsSavingAiResult(true);
+        try {
+            // Pass writeOnly=true to avoid the AUDIO permission crash
+            const { status } = await MediaLibrary.requestPermissionsAsync(true);
+            if (status !== 'granted') {
+                Alert.alert('Permission needed', 'Allow access to your photo library to save the edited image.');
+                return;
+            }
+            // Strip the data:image/png;base64, prefix
+            const b64Data = aiResultB64.split(',')[1];
+            if (!b64Data) throw new Error("Invalid base64 payload");
+
+            const fileUri = `${FileSystem.cacheDirectory}ai_edit_${Date.now()}.png`;
+            await FileSystem.writeAsStringAsync(fileUri, b64Data, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+            const asset = await MediaLibrary.createAssetAsync(fileUri);
+            await MediaLibrary.createAlbumAsync('Smart Gallery', asset, false).catch(() => undefined);
+            
+            Alert.alert('Saved! 🎉', 'The AI-edited image has been saved to your gallery.');
+        } catch (error) {
+            console.error('Save error:', error);
+            const message = error instanceof Error ? error.message : 'Unknown error occurred.';
+            Alert.alert('Error', `Could not save the image: ${message}`);
+        } finally {
+            setIsSavingAiResult(false);
+        }
+    }, [aiResultB64]);
+
     const showPhotoAtIndex = useCallback((index: number) => {
         if (!galleryPhotos[index]) return;
 
@@ -882,6 +1004,11 @@ export default function PhotoDetail() {
                         <Text style={styles.actionText}>Share</Text>
                     </TouchableOpacity>
 
+                    <TouchableOpacity onPress={openAiPanel} style={[styles.actionButton, styles.aiAction]}>
+                        <Sparkles size={18} color="#fff" />
+                        <Text style={styles.aiActionText}>Edit with AI</Text>
+                    </TouchableOpacity>
+
                     <TouchableOpacity onPress={handleDelete} style={[styles.actionButton, styles.dangerAction]}>
                         <Trash2 size={18} color="#ef4444" />
                         <Text style={styles.dangerActionText}>Delete</Text>
@@ -941,6 +1068,132 @@ export default function PhotoDetail() {
                     {indexStatus ? <Text style={styles.footerHint}>{indexStatus}</Text> : null}
                 </View>
             </View>
+
+            {/* ── AI Ask Panel (Modal bottom sheet) ─────────────────── */}
+            <Modal
+                visible={aiPanelOpen}
+                transparent
+                animationType="none"
+                onRequestClose={closeAiPanel}
+                statusBarTranslucent
+            >
+                <TouchableOpacity
+                    style={styles.aiOverlay}
+                    activeOpacity={1}
+                    onPress={closeAiPanel}
+                />
+                <Animated.View
+                    style={[
+                        styles.aiSheet,
+                        {
+                            paddingBottom: Math.max(insets.bottom, 16),
+                            transform: [{
+                                translateY: aiPanelAnim.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [500, 0],
+                                }),
+                            }],
+                        },
+                    ]}
+                >
+                    {/* Header */}
+                    <View style={styles.aiSheetHeader}>
+                        <View style={styles.aiSheetTitleRow}>
+                            <Sparkles size={16} color="#8b5cf6" />
+                            <Text style={styles.aiSheetTitle}>Edit with AI</Text>
+                        </View>
+                        <TouchableOpacity onPress={closeAiPanel} hitSlop={12}>
+                            <X size={20} color="#9ca3af" />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Example chips */}
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.aiChipsRow}
+                    >
+                        {['Make the sky more dramatic', 'Apply a vintage film look', 'Add golden hour lighting', 'Make it look like a painting', 'Add foggy atmosphere'].map((chip) => (
+                            <TouchableOpacity
+                                key={chip}
+                                style={styles.aiChip}
+                                onPress={() => setAiPrompt(chip)}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.aiChipText} numberOfLines={1}>{chip}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+
+                    {/* Input */}
+                    <KeyboardAvoidingView
+                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    >
+                        <View style={styles.aiInputRow}>
+                            <TextInput
+                                style={styles.aiInput}
+                                value={aiPrompt}
+                                onChangeText={setAiPrompt}
+                                placeholder="Describe your edit e.g. make the sky dramatic…"
+                                placeholderTextColor="#6b7280"
+                                multiline
+                                maxLength={500}
+                                returnKeyType="send"
+                                onSubmitEditing={handleAskAI}
+                            />
+                            <TouchableOpacity
+                                style={[styles.aiSendBtn, (!aiPrompt.trim() || aiLoading) && styles.aiSendBtnDisabled]}
+                                onPress={handleAskAI}
+                                disabled={!aiPrompt.trim() || aiLoading}
+                            >
+                                {aiLoading
+                                    ? <ActivityIndicator size="small" color="#fff" />
+                                    : <Send size={18} color="#fff" />}
+                            </TouchableOpacity>
+                        </View>
+                    </KeyboardAvoidingView>
+
+                    {/* Loading state */}
+                    {aiLoading && (
+                        <View style={styles.aiLoadingBox}>
+                            <ActivityIndicator color="#8b5cf6" />
+                            <Text style={styles.aiLoadingText}>DALL-E is editing your photo…</Text>
+                        </View>
+                    )}
+
+                    {/* Error */}
+                    {aiError ? (
+                        <View style={styles.aiErrorBox}>
+                            <Text style={styles.aiErrorText}>⚠️  {aiError}</Text>
+                        </View>
+                    ) : null}
+
+                    {/* Result image */}
+                    {aiResultB64 ? (
+                        <View style={styles.aiResultContainer}>
+                            <RNImage
+                                source={{ uri: aiResultB64 }}
+                                style={styles.aiResultImage}
+                                resizeMode="cover"
+                            />
+                            <View style={styles.aiResultActions}>
+                                <TouchableOpacity
+                                    style={styles.aiResultBtn}
+                                    onPress={handleSaveAiResult}
+                                    disabled={isSavingAiResult}
+                                >
+                                    {isSavingAiResult
+                                        ? <ActivityIndicator size="small" color="#fff" />
+                                        : <Text style={styles.aiResultBtnText}>💾  Save to Gallery</Text>}
+                                </TouchableOpacity>
+                                {aiCredits !== null && (
+                                    <Text style={styles.aiCreditsText}>{aiCredits} edits left this hour</Text>
+                                )}
+                            </View>
+                        </View>
+                    ) : null}
+                </Animated.View>
+            </Modal>
         </View>
     );
 }
@@ -1073,5 +1326,154 @@ const styles = StyleSheet.create({
         fontSize: 12,
         lineHeight: 18,
         color: '#9ca3af',
+    },
+    // ── AI action button ───────────────────────────────────────────────
+    aiAction: {
+        backgroundColor: '#7c3aed',
+    },
+    aiActionText: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    // ── AI bottom sheet ────────────────────────────────────────────────
+    aiOverlay: {
+        position: 'absolute',
+        top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.55)',
+    },
+    aiSheet: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: '#1a1a28',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        paddingTop: 16,
+        paddingHorizontal: 16,
+        gap: 14,
+        minHeight: 260,
+        maxHeight: '75%',
+    },
+    aiSheetHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    aiSheetTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    aiSheetTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#f1f0ff',
+    },
+    aiChipsRow: {
+        gap: 8,
+        paddingBottom: 2,
+    },
+    aiChip: {
+        backgroundColor: 'rgba(139,92,246,0.15)',
+        borderWidth: 1,
+        borderColor: 'rgba(139,92,246,0.3)',
+        borderRadius: 999,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        maxWidth: 220,
+    },
+    aiChipText: {
+        fontSize: 12,
+        color: '#a78bfa',
+        fontWeight: '600',
+    },
+    aiInputRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        gap: 10,
+        backgroundColor: '#0f0f1a',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#2d2d44',
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+    },
+    aiInput: {
+        flex: 1,
+        fontSize: 14,
+        color: '#f1f0ff',
+        minHeight: 40,
+        maxHeight: 100,
+        textAlignVertical: 'center',
+    },
+    aiSendBtn: {
+        width: 38,
+        height: 38,
+        borderRadius: 12,
+        backgroundColor: '#7c3aed',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    aiSendBtnDisabled: {
+        backgroundColor: '#2d2d44',
+    },
+    aiErrorBox: {
+        backgroundColor: 'rgba(248,113,113,0.1)',
+        borderWidth: 1,
+        borderColor: 'rgba(248,113,113,0.25)',
+        borderRadius: 12,
+        padding: 12,
+    },
+    aiErrorText: {
+        fontSize: 13,
+        color: '#fca5a5',
+        lineHeight: 19,
+    },
+    aiLoadingBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        padding: 14,
+        backgroundColor: 'rgba(139,92,246,0.1)',
+        borderRadius: 12,
+    },
+    aiLoadingText: {
+        fontSize: 13,
+        color: '#a78bfa',
+        fontWeight: '600',
+    },
+    aiResultContainer: {
+        borderRadius: 16,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(139,92,246,0.3)',
+    },
+    aiResultImage: {
+        width: '100%',
+        height: 200,
+    },
+    aiResultActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 12,
+        backgroundColor: '#0f0f1a',
+    },
+    aiResultBtn: {
+        backgroundColor: '#7c3aed',
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+    },
+    aiResultBtnText: {
+        color: '#fff',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    aiCreditsText: {
+        fontSize: 11,
+        color: '#6b7280',
     },
 });
