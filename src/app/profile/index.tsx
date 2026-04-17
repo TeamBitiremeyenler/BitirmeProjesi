@@ -9,6 +9,7 @@ import { trackEvent } from "@/src/mixpanel";
 import { supabase } from "@/lib/supabase";
 import { useAuthContext } from "@/src/hooks/auth-hooks";
 import { goBackOrReplace } from "@/src/lib/navigation";
+import { clearSyncMap } from "@/src/lib/local-sync-store";
 
 export default function Profile() {
     const { profile } = useAuthContext();
@@ -37,6 +38,7 @@ export default function Profile() {
             console.error("Error logging out:", error);
             return;
         }
+        await clearSyncMap();
         router.replace("/");
     };
 

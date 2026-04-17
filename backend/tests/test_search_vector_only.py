@@ -29,7 +29,7 @@ class SearchVectorOnlyTests(unittest.TestCase):
 
         with patch("app.db.supabase.get_supabase", side_effect=Exception("disabled")), \
              patch("app.services.search_service.generate_query_embedding", return_value=[1.0, 0.0]), \
-             patch("app.services.search_service.get_all_index_records", return_value=rows):
+             patch("app.services.search_service.get_index_records_for_user", return_value=rows):
             response = SearchService().search_images(
                 user_id="user-1",
                 query="bicycle",

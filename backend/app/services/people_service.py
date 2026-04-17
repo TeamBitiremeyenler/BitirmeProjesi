@@ -11,7 +11,6 @@ from uuid import uuid4
 from app.core.config import settings
 from app.db.supabase import get_supabase
 from app.services.local_index_store import (
-    get_all_index_records,
     get_index_records_for_user,
     rename_face_cluster_references,
 )
@@ -503,11 +502,7 @@ def _fetch_clusters_from_local_store(user_id: str) -> list[dict[str, Any]]:
             if detection.get("user_id") == user_id
         ]
 
-    image_rows = (
-        get_all_index_records()
-        if settings and settings.DEV_BYPASS_AUTH
-        else get_index_records_for_user(user_id)
-    )
+    image_rows = get_index_records_for_user(user_id)
     image_rows_by_uuid = {}
     for image_row in image_rows:
         if not isinstance(image_row, dict):

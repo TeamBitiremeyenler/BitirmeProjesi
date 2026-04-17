@@ -1,20 +1,21 @@
-# Phase 2 Backend Dependencies
+# Backend API
 fastapi>=0.110.0
 uvicorn[standard]>=0.29.0
 supabase>=2.3.4
 python-multipart>=0.0.9
+pydantic>=2.6.0
 pydantic-settings>=2.2.1
 pyjwt>=2.8.0
 python-dotenv>=1.0.1
 
-# Phase 3 AI Dependencies
+# Upload and search pipeline
 torch>=2.0.0
-torchvision>=0.15.0
-transformers>=4.38.0
+transformers>=4.50.0
 Pillow>=10.2.0
+numpy>=2.0.0
+opencv-python-headless>=4.10.0.84
 insightface>=0.7.3
 onnxruntime>=1.17.0
-sentence-transformers>=2.5.1
 
-# Phase 7 GenAI
+# GenAI image editing
 openai>=1.30.0

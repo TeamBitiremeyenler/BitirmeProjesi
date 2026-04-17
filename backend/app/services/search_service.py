@@ -9,7 +9,6 @@ from app.core.config import settings
 from app.services.embedding_service import generate_query_embedding
 from app.services.local_index_store import (
     delete_index_records_for_user,
-    get_all_index_records,
     get_index_records_for_user,
 )
 from app.services.people_service import clear_people_records_for_user
@@ -291,12 +290,7 @@ class SearchService:
         query_embedding: list[float],
         limit: int,
     ) -> list[dict[str, Any]]:
-        rows = (
-            get_all_index_records()
-            if settings and settings.DEV_BYPASS_AUTH
-            else get_index_records_for_user(user_id)
-        )
-
+        rows = get_index_records_for_user(user_id)
         return self._rank_results(rows, query_embedding, limit)
 
     def _merge_ranked_results(
