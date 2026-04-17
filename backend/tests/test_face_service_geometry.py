@@ -137,6 +137,25 @@ class FaceServiceGeometryTests(unittest.TestCase):
         self.assertEqual(result.faces, [])
         self.assertEqual(mocked_attempt.call_count, 1)
 
+    def test_expensive_mode_runs_one_full_frame_attempt(self) -> None:
+        with patch("app.services.face_service.run_detection_attempt", return_value=[]) as mocked_attempt:
+            result = face_service.detect_faces_in_image(
+                np.zeros((128, 128, 3), dtype=np.uint8),
+                detection_mode="expensive",
+                enable_hard_portrait_fallback=True,
+            )
+
+        self.assertIsNone(result.attempt_label)
+        self.assertEqual(result.faces, [])
+        self.assertEqual(mocked_attempt.call_count, 1)
+        self.assertEqual(mocked_attempt.call_args.kwargs["det_size"], (640, 640))
+        self.assertEqual(mocked_attempt.call_args.kwargs["det_thresh"], 0.40)
+        self.assertEqual(mocked_attempt.call_args.kwargs["min_face_score"], 0.40)
+        self.assertIsNone(mocked_attempt.call_args.kwargs.get("target_max_edge"))
+        self.assertIsNone(mocked_attempt.call_args.kwargs.get("target_min_edge"))
+        self.assertIsNone(mocked_attempt.call_args.kwargs.get("crop_ratio"))
+        self.assertIsNone(mocked_attempt.call_args.kwargs.get("rotation_angle"))
+
     def test_fallback_mode_starts_with_high_detail_attempt(self) -> None:
         fake_face = [{"bbox": [0.0, 0.0, 10.0, 10.0], "embedding": [0.1, 0.2]}]
 

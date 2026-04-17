@@ -32,7 +32,7 @@ async def upload_image(
             shutil.copyfileobj(file.file, buffer)
             
         # 2. Trigger Intelligence Pipeline in the background
-        # It handles BLIP, CLIP, InsightFace, Supabase limits, and cleanup.
+        # It handles SigLIP2 image embeddings, InsightFace, Supabase limits, and cleanup.
         from app.services.pipeline import process_image
         background_tasks.add_task(process_image, tmp_path, user_id, photo_id, image_uuid, captured_at)
         

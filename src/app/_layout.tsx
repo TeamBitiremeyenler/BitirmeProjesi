@@ -20,6 +20,7 @@ Uniwind.setTheme('tagged-light');
 SplashScreen.preventAutoHideAsync();
 
 const ALLOWED_PREFIXES = ["/home", "/photo-detail", "/photo-edit", "/albums", "/people", "/calendar", "/profile"];
+const AUTH_PREFIXES = ["login", "register", "reset-password"];
 
 function isAllowedPath(path: string) {
   return ALLOWED_PREFIXES.some((prefix) => path.startsWith(prefix));
@@ -39,8 +40,9 @@ function RootLayoutNav() {
     if (isLoading || !rootNavigationState?.key) return;
 
     const currentPath = segments[0] || "";
-    const inAuthGroup = currentPath === "login" || currentPath === "register";
+    const inAuthGroup = AUTH_PREFIXES.includes(String(currentPath));
     const inOnboarding = currentPath === "onboarding";
+    const inPasswordReset = currentPath === "reset-password";
     const isAtRoot = segments.length < 1;
 
     if (!hasBootstrappedNavigation.current) {
@@ -54,6 +56,8 @@ function RootLayoutNav() {
         if (!inAuthGroup && !isAtRoot) {
           router.replace("/");
         }
+      } else if (inPasswordReset) {
+        // Password recovery creates a temporary session; keep the user on the reset form.
       } else if (!profile?.onboarding_completed) {
         if (!inOnboarding) {
           router.replace("/onboarding");
@@ -75,6 +79,11 @@ function RootLayoutNav() {
         router.replace("/");
       }
     } else {
+      if (inPasswordReset) {
+        setIsNavigationReady(true);
+        return;
+      }
+
       if (!profile?.onboarding_completed) {
         if (!inOnboarding) {
           router.replace("/onboarding");

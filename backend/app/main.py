@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.endpoints import upload, search, people, ai
+from app.api.endpoints import auth, upload, search, people, ai
 from app.core.config import settings
 import uvicorn
 
@@ -20,6 +20,7 @@ app.add_middleware(
 )
 
 # Register routers
+app.include_router(auth.router, prefix="/api", tags=["Auth"])
 app.include_router(upload.router, prefix="/api", tags=["Upload"])
 app.include_router(search.router, prefix="/api", tags=["Search"])
 app.include_router(people.router, prefix="/api", tags=["People"])

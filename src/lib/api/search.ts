@@ -39,7 +39,7 @@ type RemoteSearchResponse = {
 };
 
 const SEARCH_REQUEST_TIMEOUT_MS = 15000;
-const SYNCED_BACKEND_MODES = new Set(['pgvector_rpc', 'python_scan', 'lexical_fast_path']);
+const SYNCED_BACKEND_MODES = new Set(['pgvector_rpc', 'python_scan', 'local_dev_store']);
 
 function resolveBackendBaseUrl(): string | null {
     const envUrl = process.env.EXPO_PUBLIC_BACKEND_URL?.trim();

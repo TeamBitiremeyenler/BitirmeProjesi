@@ -1,4 +1,4 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import Animated, {
   Extrapolation,
   interpolate,
@@ -42,9 +42,8 @@ export const SlideItem: FC<SlideItemProps> = ({ item, index, width, scrollOffset
   return (
     <Animated.View className="px-7 py-5" style={[{ width }, rStyle]}>
       <View
-        className="flex-1 items-center p-20 px-4 rounded-3xl"
+        className="flex-1 overflow-hidden rounded-3xl"
         style={{
-          backgroundColor: item.bgColor,
           shadowColor: "black",
           shadowOffset: { width: 0, height: 12 },
           shadowOpacity: 0.25,
@@ -53,13 +52,12 @@ export const SlideItem: FC<SlideItemProps> = ({ item, index, width, scrollOffset
           borderCurve: "continuous",
         }}
       >
-        <Text className="text-white text-4xl font-bold text-center mb-20">{item.title}</Text>
         <Image
-          contentFit="contain"
+          contentFit="cover"
           source={item.imagePath}
           style={{
             width: '100%',
-            height: 300,
+            height: '100%',
           }}
         />
       </View>

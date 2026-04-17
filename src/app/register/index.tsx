@@ -6,35 +6,119 @@ import { useRouter, Link } from 'expo-router';
 import PageProvider from '@/src/components/page-provider';
 import { ChevronLeft } from 'lucide-react-native';
 import { goBackOrReplace } from '@/src/lib/navigation';
+import { checkEmailExists, normalizeAuthEmail, sendPasswordResetEmail } from '@/src/lib/api/auth';
+
+function isDuplicateEmailError(error: unknown): boolean {
+    if (!error || typeof error !== 'object' || !('message' in error)) return false;
+    const message = String(error.message).toLowerCase();
+    return (
+        message.includes('already registered') ||
+        message.includes('already exists') ||
+        message.includes('user already')
+    );
+}
 
 export default function RegisterScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [agree, setAgree] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [isSendingReset, setIsSendingReset] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [canResetPassword, setCanResetPassword] = useState(false);
     const router = useRouter();
 
     async function handleRegister() {
+        const normalizedEmail = normalizeAuthEmail(email);
+
         if (!agree) {
             setError("You must agree to the terms and conditions.");
+            setSuccessMessage(null);
+            setCanResetPassword(false);
+            return;
+        }
+
+        if (!normalizedEmail) {
+            setError('E-posta adresi zorunlu.');
+            setSuccessMessage(null);
+            setCanResetPassword(false);
+            return;
+        }
+
+        if (password.length < 6) {
+            setError('Şifre en az 6 karakter olmalı.');
+            setSuccessMessage(null);
+            setCanResetPassword(false);
             return;
         }
 
         setLoading(true);
         setError(null);
+        setSuccessMessage(null);
+        setCanResetPassword(false);
 
-        const { error: signUpError } = await supabase.auth.signUp({
-            email,
-            password,
-        });
+        try {
+            const existingEmail = await checkEmailExists(normalizedEmail);
+            if (existingEmail) {
+                setError('Bu mail zaten kullanımda. Şifrenizi sıfırlamak için aşağıdaki butona tıklayın.');
+                setCanResetPassword(true);
+                return;
+            }
 
-        if (signUpError) {
-            setError(signUpError.message);
+            const { data, error: signUpError } = await supabase.auth.signUp({
+                email: normalizedEmail,
+                password,
+            });
+
+            if (signUpError) {
+                if (isDuplicateEmailError(signUpError)) {
+                    setError('Bu mail zaten kullanımda. Şifrenizi sıfırlamak için aşağıdaki butona tıklayın.');
+                    setCanResetPassword(true);
+                    return;
+                }
+
+                setError(signUpError.message);
+                return;
+            }
+
+            if (data.session) {
+                router.replace('/home');
+                return;
+            }
+
+            setSuccessMessage('Üyelik oluşturuldu. Devam etmek için e-postanı doğrulaman gerekebilir.');
+        } catch (lookupError) {
+            setError(
+                lookupError instanceof Error && lookupError.message.startsWith('email_status_failed')
+                    ? 'E-posta kontrolü şu an yapılamıyor. Lütfen biraz sonra tekrar deneyin.'
+                    : 'Üyelik oluşturulamadı. Lütfen biraz sonra tekrar deneyin.'
+            );
+        } finally {
             setLoading(false);
-        } else {
-            // Usually redirects to a 'verify email' state or home if auto-confirm is on
-            router.replace('/home');
+        }
+    }
+
+    async function handleSendResetEmail() {
+        const normalizedEmail = normalizeAuthEmail(email);
+        if (!normalizedEmail) {
+            setError('Şifre sıfırlama için e-posta adresini yaz.');
+            setSuccessMessage(null);
+            return;
+        }
+
+        setIsSendingReset(true);
+        setError(null);
+        setSuccessMessage(null);
+
+        try {
+            await sendPasswordResetEmail(normalizedEmail);
+            setSuccessMessage('Şifre sıfırlama bağlantısı e-postana gönderildi.');
+            setCanResetPassword(false);
+        } catch (resetError) {
+            setError(resetError instanceof Error ? resetError.message : 'Şifre sıfırlama e-postası gönderilemedi.');
+        } finally {
+            setIsSendingReset(false);
         }
     }
 
@@ -51,7 +135,7 @@ export default function RegisterScreen() {
                     </View>
                     <RNImage
                         style={{ width: 48, height: 48 }}
-                        source={require("@/assets/logo-dark.png")}
+                        source={require("@/assets/real assets/mainLogo.png")}
                     />
                     <View>
                         <Text className="text-2xl font-bold mb-2">
@@ -117,7 +201,7 @@ export default function RegisterScreen() {
                     <View className="flex-row justify-center items-center gap-2 mt-4">
                         <View className="flex-row gap-1">
                             <Text>Already have an account?</Text>
-                            <Link href="/">
+                            <Link href="/login">
                                 <Text className="text-primary font-bold">
                                     Login
                                 </Text>
@@ -129,6 +213,22 @@ export default function RegisterScreen() {
                     {error && agree && (
                         <Text className="text-danger text-center mt-2">{error}</Text>
                     )}
+
+                    {canResetPassword ? (
+                        <TouchableOpacity
+                            onPress={handleSendResetEmail}
+                            disabled={isSendingReset}
+                            className="items-center"
+                        >
+                            <Text className="text-primary font-bold">
+                                {isSendingReset ? 'Gönderiliyor...' : 'Şifre sıfırlama bağlantısı gönder'}
+                            </Text>
+                        </TouchableOpacity>
+                    ) : null}
+
+                    {successMessage ? (
+                        <Text className="text-success text-center mt-2">{successMessage}</Text>
+                    ) : null}
                 </View>
             </ScrollView>
         </PageProvider>

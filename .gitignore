@@ -27,6 +27,7 @@ __pycache__/
 
 # Environments
 .env
+keys.rtf
 .venv
 env/
 venv/
@@ -92,3 +93,6 @@ yarn-error.*
 AGENTS.md
 tasks/
 roadmap*.md
+
+# Local test images
+test images/

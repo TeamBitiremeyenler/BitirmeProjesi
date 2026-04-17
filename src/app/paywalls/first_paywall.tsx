@@ -12,9 +12,9 @@ import { trackEvent } from "@/src/mixpanel";
 const { width } = Dimensions.get("window");
 
 const AVATAR_MAP: Record<number, any> = {
-    1: require("@/assets/avatars/avatar1.png"),
-    2: require("@/assets/avatars/avatar7.png"),
-    3: require("@/assets/avatars/avatar4.png"),
+    1: require("@/assets/real assets/mainLogo.png"),
+    2: require("@/assets/real assets/mainLogo.png"),
+    3: require("@/assets/real assets/mainLogo.png"),
 };
 
 interface IReview {

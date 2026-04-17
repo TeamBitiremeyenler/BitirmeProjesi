@@ -11,11 +11,20 @@ from insightface.app import FaceAnalysis
 MODEL_NAME = "buffalo_l"
 DEFAULT_DET_THRESH = 0.5
 DEFAULT_DET_SIZE = (640, 640)
+EXPENSIVE_FACE_SCORE_THRESHOLD = 0.40
 HARD_PORTRAIT_DET_SIZE = (1280, 1280)
 HARD_PORTRAIT_DET_THRESH = 0.20
 HARD_PORTRAIT_CROP_RATIO = 0.85
 HARD_PORTRAIT_MIN_EDGE = 1800
 ROTATION_ANGLES = (-15.0, 15.0)
+EXPENSIVE_FACE_ATTEMPT = {
+    "label": "expensive",
+    "det_size": DEFAULT_DET_SIZE,
+    "det_thresh": EXPENSIVE_FACE_SCORE_THRESHOLD,
+    "min_face_score": EXPENSIVE_FACE_SCORE_THRESHOLD,
+    "target_max_edge": None,
+    "target_min_edge": None,
+}
 
 FULL_FRAME_ATTEMPTS = (
     {
@@ -323,6 +332,9 @@ def build_attempt_sequence(
 ) -> tuple[dict[str, Any], ...]:
     if detection_mode == "fast":
         return FAST_FACE_ATTEMPTS
+
+    if detection_mode == "expensive":
+        return (EXPENSIVE_FACE_ATTEMPT,)
 
     if detection_mode == "fallback":
         attempts = HUMAN_GUIDED_FULL_FRAME_ATTEMPTS

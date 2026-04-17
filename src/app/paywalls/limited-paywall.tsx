@@ -44,10 +44,10 @@ export default function LimitedPaywall() {
     ], [t]);
 
     const USERS: User[] = [
-        { id: "1", image: <Image style={{ width: 40, height: 40 }} source={require("@/assets/avatars/avatar1.png")} /> },
-        { id: "2", image: <Image style={{ width: 40, height: 40 }} source={require("@/assets/avatars/avatar2.png")} /> },
-        { id: "3", image: <Image style={{ width: 40, height: 40 }} source={require("@/assets/avatars/avatar3.png")} /> },
-        { id: "4", image: <Image style={{ width: 40, height: 40 }} source={require("@/assets/avatars/avatar4.png")} /> },
+        { id: "1", image: <Image style={{ width: 40, height: 40 }} source={require("@/assets/real assets/mainLogo.png")} /> },
+        { id: "2", image: <Image style={{ width: 40, height: 40 }} source={require("@/assets/real assets/mainLogo.png")} /> },
+        { id: "3", image: <Image style={{ width: 40, height: 40 }} source={require("@/assets/real assets/mainLogo.png")} /> },
+        { id: "4", image: <Image style={{ width: 40, height: 40 }} source={require("@/assets/real assets/mainLogo.png")} /> },
     ];
 
     const memberCount = useMemo(() => Math.floor(Math.random() * (240 - 100 + 1)) + 100, []);

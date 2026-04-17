@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import math
-import re
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,33 +22,9 @@ PEOPLE_STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
 _LOCK = threading.Lock()
 FACE_MATCH_THRESHOLD = 0.40
 FACE_MATCH_THRESHOLD_SAME_IMAGE = 0.68
-PERSON_HINTS = {
-    "person",
-    "people",
-    "man",
-    "men",
-    "woman",
-    "women",
-    "boy",
-    "girl",
-    "guy",
-    "lady",
-    "male",
-    "female",
-    "player",
-    "speaker",
-    "microphone",
-    "microphones",
-    "meeting",
-    "president",
-    "portrait",
-    "selfie",
-    "face",
-    "beard",
-    "glasses",
-    "athlete",
-    "team",
-}
+FACE_CLUSTER_COLUMNS = (
+    "id,user_id,name,centroid,sample_count,cover_image_uuid,cover_photo_id,updated_at"
+)
 
 
 def _utc_now_iso() -> str:
@@ -84,6 +59,17 @@ def _write_store(store: dict[str, list[dict[str, Any]]]) -> None:
 
 
 def _parse_embedding(value: Any) -> list[float]:
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if not cleaned:
+            return []
+
+        try:
+            decoded = json.loads(cleaned)
+        except json.JSONDecodeError:
+            decoded = cleaned.strip("[]{}").split(",")
+        return _parse_embedding(decoded)
+
     if not isinstance(value, list):
         return []
 
@@ -155,6 +141,75 @@ def _normalize_detection(detection: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _merge_clusters(
+    local_clusters: list[dict[str, Any]],
+    supabase_clusters: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+
+    for cluster in local_clusters:
+        normalized = _normalize_cluster(cluster)
+        merged[normalized["id"]] = normalized
+
+    for cluster in supabase_clusters:
+        normalized = _normalize_cluster(cluster)
+        existing = merged.get(normalized["id"])
+        if existing:
+            merged[normalized["id"]] = {
+                **existing,
+                **normalized,
+                "centroid": normalized["centroid"] or existing["centroid"],
+                "sample_count": max(existing["sample_count"], normalized["sample_count"]),
+            }
+        else:
+            merged[normalized["id"]] = normalized
+
+    return list(merged.values())
+
+
+def _fetch_matchable_clusters_from_supabase(user_id: str) -> list[dict[str, Any]]:
+    try:
+        supabase = get_supabase()
+        response = (
+            supabase.table("face_clusters")
+            .select(FACE_CLUSTER_COLUMNS)
+            .eq("user_id", user_id)
+            .execute()
+        )
+    except Exception as error:
+        print(f"People clustering Supabase centroid fetch skipped: {error}")
+        return []
+
+    rows = getattr(response, "data", None) or []
+    if not isinstance(rows, list):
+        return []
+
+    return [
+        _normalize_cluster(row)
+        for row in rows
+        if isinstance(row, dict)
+    ]
+
+
+def build_face_cluster_upsert_payload(
+    cluster: dict[str, Any],
+    *,
+    cover_image_uuid: str | None = None,
+    cover_photo_id: str | None = None,
+) -> dict[str, Any]:
+    normalized = _normalize_cluster(cluster)
+    return {
+        "id": normalized["id"],
+        "user_id": normalized["user_id"],
+        "name": normalized["name"],
+        "centroid": normalized["centroid"] or None,
+        "sample_count": normalized["sample_count"],
+        "cover_image_uuid": cover_image_uuid or normalized.get("cover_image_uuid"),
+        "cover_photo_id": cover_photo_id or normalized.get("cover_photo_id"),
+        "updated_at": normalized["updated_at"],
+    }
+
+
 def _build_image_signature(image_row: dict[str, Any]) -> str:
     content_hash = image_row.get("content_hash")
     if isinstance(content_hash, str) and content_hash:
@@ -168,19 +223,7 @@ def _build_image_signature(image_row: dict[str, Any]) -> str:
     if isinstance(image_uuid, str) and image_uuid:
         return f"image:{image_uuid}"
 
-    caption = str(image_row.get("caption") or "").strip().lower()
-    tags = image_row.get("tags")
-    normalized_tags = ",".join(sorted(str(tag).strip().lower() for tag in tags if tag)) if isinstance(tags, list) else ""
-
-    return f"caption:{caption}|tags:{normalized_tags}"
-
-
-def looks_like_people_photo(*, caption: Any = None, tags: Any = None) -> bool:
-    caption_text = str(caption or "").lower()
-    tag_tokens = {str(tag).strip().lower() for tag in tags if tag} if isinstance(tags, list) else set()
-    metadata = {token for token in re.split(r"\W+", caption_text) if token}
-
-    return bool(PERSON_HINTS.intersection(metadata.union(tag_tokens)))
+    return json.dumps(image_row, sort_keys=True, default=str)
 
 
 def _image_has_face_evidence(image_row: dict[str, Any]) -> bool:
@@ -205,13 +248,7 @@ def _image_has_face_evidence(image_row: dict[str, Any]) -> bool:
 
 
 def _image_looks_human(image_row: dict[str, Any]) -> bool:
-    if _image_has_face_evidence(image_row):
-        return True
-
-    return looks_like_people_photo(
-        caption=image_row.get("caption"),
-        tags=image_row.get("tags"),
-    )
+    return _image_has_face_evidence(image_row)
 
 
 def assign_faces_to_clusters(
@@ -223,14 +260,19 @@ def assign_faces_to_clusters(
     captured_at: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     assigned_faces: list[dict[str, Any]] = []
+    if not faces:
+        return assigned_faces, []
+
+    supabase_clusters = _fetch_matchable_clusters_from_supabase(user_id)
 
     with _LOCK:
         store = _read_store()
-        clusters = [
+        local_clusters = [
             _normalize_cluster(cluster)
             for cluster in store["clusters"]
             if cluster.get("user_id") == user_id
         ]
+        clusters = _merge_clusters(local_clusters, supabase_clusters)
         untouched_clusters = [
             _normalize_cluster(cluster)
             for cluster in store["clusters"]
@@ -241,7 +283,7 @@ def assign_faces_to_clusters(
             for detection in store["detections"]
         ]
 
-        new_clusters: list[dict[str, Any]] = []
+        touched_clusters_by_id: dict[str, dict[str, Any]] = {}
         assigned_cluster_ids_in_photo: set[str] = set()
 
         for face in faces:
@@ -281,7 +323,6 @@ def assign_faces_to_clusters(
                     "updated_at": _utc_now_iso(),
                 }
                 clusters.append(best_cluster)
-                new_clusters.append(best_cluster.copy())
             else:
                 best_cluster["centroid"] = _blend_embeddings(
                     best_cluster["centroid"],
@@ -292,6 +333,8 @@ def assign_faces_to_clusters(
                 best_cluster["cover_image_uuid"] = image_uuid
                 best_cluster["cover_photo_id"] = photo_id
                 best_cluster["updated_at"] = _utc_now_iso()
+
+            touched_clusters_by_id[best_cluster["id"]] = best_cluster.copy()
 
             assigned_faces.append({
                 "cluster_id": best_cluster["id"],
@@ -318,7 +361,7 @@ def assign_faces_to_clusters(
         store["detections"] = detections
         _write_store(store)
 
-    return assigned_faces, new_clusters
+    return assigned_faces, list(touched_clusters_by_id.values())
 
 
 def _build_cluster_payload(
@@ -379,7 +422,12 @@ def _build_cluster_payload(
 def _fetch_clusters_from_supabase(user_id: str) -> list[dict[str, Any]]:
     supabase = get_supabase()
 
-    clusters_response = supabase.table("face_clusters").select("id,name").eq("user_id", user_id).execute()
+    clusters_response = (
+        supabase.table("face_clusters")
+        .select(FACE_CLUSTER_COLUMNS)
+        .eq("user_id", user_id)
+        .execute()
+    )
     cluster_rows = getattr(clusters_response, "data", None) or []
     if not cluster_rows:
         return []
@@ -402,7 +450,7 @@ def _fetch_clusters_from_supabase(user_id: str) -> list[dict[str, Any]]:
     if image_uuids:
         images_response = (
             supabase.table("images")
-            .select("uuid,photo_id,captured_at,caption,tags,persons")
+            .select("uuid,photo_id,captured_at,persons")
             .eq("user_id", user_id)
             .in_("uuid", image_uuids)
             .execute()
@@ -424,9 +472,9 @@ def _fetch_clusters_from_supabase(user_id: str) -> list[dict[str, Any]]:
             {
                 "id": str(cluster_row.get("id")),
                 "name": str(cluster_row.get("name") or "Unnamed Person"),
-                "cover_photo_id": None,
-                "cover_image_uuid": None,
-                "updated_at": None,
+                "cover_photo_id": cluster_row.get("cover_photo_id"),
+                "cover_image_uuid": cluster_row.get("cover_image_uuid"),
+                "updated_at": cluster_row.get("updated_at"),
             },
             cluster_detections,
             image_rows_by_uuid,

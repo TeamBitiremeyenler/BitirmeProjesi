@@ -75,7 +75,8 @@
       ],
       [
         "expo-apple-authentication"
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

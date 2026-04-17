@@ -5,7 +5,7 @@ import { Button } from "heroui-native";
 import { ChevronDown } from "lucide-react-native";
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, Text, useWindowDimensions, View } from "react-native";
+import { Platform, Pressable, Text, useWindowDimensions, View } from "react-native";
 import { FlatList, Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   Extrapolation,
@@ -37,6 +37,7 @@ const SWIPE_UP_THRESHOLD = 20;
 
 export const Onboarding = () => {
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
+  const isAppleSignInSupported = Platform.OS === "ios";
 
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
@@ -202,16 +203,17 @@ export const Onboarding = () => {
   });
 
   const expandButtons = () => {
-    if (isDragging.value) {
+    if (translateY.get() <= -TOP_CAROUSEL_OFFSET + 1) {
       trackEvent('onboarding_email_sign_in');
       router.replace("/login");
-    } else {
-      isDragging.set(false);
-      translateY.set(
-        withSpring(-TOP_CAROUSEL_OFFSET, {}, () => {
-        })
-      );
+      return;
     }
+
+    isDragging.set(false);
+    translateY.set(
+      withSpring(-TOP_CAROUSEL_OFFSET, {}, () => {
+      })
+    );
   };
 
   const rGradientStyle = useAnimatedStyle(() => {
@@ -239,32 +241,22 @@ export const Onboarding = () => {
   const { t } = useTranslation();
   const SLIDES: OnboardingSlide[] = [
     {
-      bgColor: "#2A2F3E",
+      bgColor: "#1A8E3C",
       duration: 3000,
       title: t("welcome.sliderTitles.first"),
-      imagePath: require("@/assets/calendar_feature.png")
+      imagePath: require("@/assets/real assets/startScreen1.png")
     },
     {
-      bgColor: "#4B3A2E",
+      bgColor: "#D4D0CB",
       duration: 3000,
       title: t("welcome.sliderTitles.second"),
-      imagePath: require("@/assets/feature_calendar.png")
-    },
-    {
-      bgColor: "#1A3A34",
-      duration: 3000,
-      title: t("welcome.sliderTitles.third"),
-      imagePath: require("@/assets/feature_noti.png")
-    },
-    {
-      bgColor: "#2F2C33",
-      duration: 2000,
-      title: t("welcome.sliderTitles.fourth"),
-      imagePath: require("@/assets/feature_collection.png")
+      imagePath: require("@/assets/real assets/startScreen2.png")
     },
   ];
 
   const appleSignInHandler = async () => {
+    if (!isAppleSignInSupported) return;
+
     trackEvent('onboarding_apple_sign_in');
 
     try {
@@ -302,14 +294,16 @@ export const Onboarding = () => {
           <Text className="text-muted text-center mt-3 text-wrap mx-7">
             {t("welcome.subtitle")}
           </Text>
-          <Button
-            size="lg"
-            className="mx-7 mt-8 gap-2"
-            style={{ borderCurve: "continuous" }}
-            onPress={appleSignInHandler}>
-            <AntDesign name="apple" size={24} color="#1F2840" />
-            <Button.Label>{t("welcome.buttons.apple")}</Button.Label>
-          </Button>
+          {isAppleSignInSupported ? (
+            <Button
+              size="lg"
+              className="mx-7 mt-8 gap-2"
+              style={{ borderCurve: "continuous" }}
+              onPress={appleSignInHandler}>
+              <AntDesign name="apple" size={24} color="#1F2840" />
+              <Button.Label>{t("welcome.buttons.apple")}</Button.Label>
+            </Button>
+          ) : null}
         </Animated.View>
         <Button
           size="lg"

@@ -12,7 +12,7 @@ async def search_images(
 ):
     """
     Semantic search endpoint.
-    Converts text query `q` to a CLIP embedding and searches Supabase/pgvector for matching photos.
+    Converts text query `q` to a SigLIP2 text embedding and searches image embeddings.
     """
     try:
         response = SearchService().search_images(user_id=user_id, query=q, limit=limit)
