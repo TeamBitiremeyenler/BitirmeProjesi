@@ -19,7 +19,7 @@ Uniwind.setTheme('tagged-light');
 
 SplashScreen.preventAutoHideAsync();
 
-const ALLOWED_PREFIXES = ["/home", "/photo-detail", "/photo-edit", "/albums", "/people", "/calendar", "/profile"];
+const ALLOWED_PREFIXES = ["/home", "/photo-detail", "/photo-edit", "/albums", "/people", "/profile"];
 const AUTH_PREFIXES = ["login", "register", "reset-password"];
 
 function isAllowedPath(path: string) {

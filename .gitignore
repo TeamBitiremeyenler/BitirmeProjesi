@@ -93,6 +93,7 @@ yarn-error.*
 AGENTS.md
 tasks/
 roadmap*.md
+tls_certificate_pinning_report_updates.md
 
 # Local test images
 test images/

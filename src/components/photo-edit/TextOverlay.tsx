@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { AlignCenter, AlignLeft, AlignRight, Check, Trash2, Type, Copy, Palette } from 'lucide-react-native';
 import Slider from '@react-native-community/slider';
-import { ColorMatrix } from 'react-native-color-matrix-image-filters';
+import { ColorMatrix, type Matrix } from 'react-native-color-matrix-image-filters';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -367,7 +367,7 @@ export function TextOnCanvas({
         >
             {/* Action buttons — rendered OUTSIDE PanResponder so they receive taps */}
             {selectedItem && (() => {
-                const { w, h } = estimateTextSize(selectedItem);
+                const { w } = estimateTextSize(selectedItem);
                 const scale = Math.max(viewportScale, 0.0001);
                 const boxX = viewportOffsetX + selectedItem.x * scale;
                 const boxY = viewportOffsetY + selectedItem.y * scale;
@@ -458,7 +458,7 @@ type TextEditorFullScreenProps = {
     imageUri: string;
     imageWidth: number;
     imageHeight: number;
-    colorMatrix?: number[] | null;
+    colorMatrix?: Matrix | null;
     imageTransform?: any[];
     onDone: (id: string, text: string, updates: Partial<TextItem>) => void;
 };

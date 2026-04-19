@@ -23,7 +23,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AnimatedText } from './animated-text';
-import { Toast, useToast } from 'heroui-native';
+import { useToast } from 'heroui-native';
 import { Check } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 
@@ -79,20 +79,13 @@ export function FeedbackRatingSheet({
 }: FeedbackRatingSheetProps) {
 
     const { t } = useTranslation();
-    // Question text based on rating
-    const getQuestionText = (rating: number): string => {
-        if (rating <= 2) return t('feedback.modal.questions.first');
-        if (rating === 3) return t('feedback.modal.questions.second');
-        return t('feedback.modal.questions.third');
-    };
-
     // Default feedback options
     const DEFAULT_FEEDBACK_OPTIONS: FeedbackOption[] = [
         { id: 'ai', label: t('feedback.modal.labels.ai') },
-        { id: 'notification', label: t('feedback.modal.labels.notification') },
-        { id: 'calendar', label: t('feedback.modal.labels.calendar') },
-        { id: 'tagging', label: t('feedback.modal.labels.tagging') },
-        { id: 'organization', label: t('feedback.modal.labels.organization') },
+        { id: 'search', label: t('feedback.modal.labels.search') },
+        { id: 'albums', label: t('feedback.modal.labels.albums') },
+        { id: 'people', label: t('feedback.modal.labels.people') },
+        { id: 'editing', label: t('feedback.modal.labels.editing') },
     ];
     const insets = useSafeAreaInsets();
     const [rating, setRating] = useState(0);
@@ -152,14 +145,26 @@ export function FeedbackRatingSheet({
             opacity.value = withTiming(0, { duration: 200 });
             translateY.value = withSpring(SCREEN_HEIGHT, { ...SPRING_CONFIG, stiffness: 250 });
         }
-    }, [visible]);
+    }, [
+        gradientWidth,
+        opacity,
+        ratingSharedValue,
+        sheetHeight,
+        star1Scale,
+        star2Scale,
+        star3Scale,
+        star4Scale,
+        star5Scale,
+        translateY,
+        visible,
+    ]);
 
     useEffect(() => {
         if (rating > 0 && !showFullSheet) {
             setShowFullSheet(true);
             sheetHeight.value = withSpring(520, SMOOTH_SPRING);
         }
-    }, [rating]);
+    }, [rating, sheetHeight, showFullSheet]);
 
     const safeClose = () => {
         onClose();
@@ -323,7 +328,11 @@ export function FeedbackRatingSheet({
         return RATING_GRADIENT_COLORS[rating] || RATING_GRADIENT_COLORS[5];
     };
 
-    const questionText = useMemo(() => getQuestionText(rating), [rating]);
+    const questionText = useMemo(() => {
+        if (rating <= 2) return t('feedback.modal.questions.first');
+        if (rating === 3) return t('feedback.modal.questions.second');
+        return t('feedback.modal.questions.third');
+    }, [rating, t]);
 
     return (
         <Modal

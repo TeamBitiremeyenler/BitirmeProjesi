@@ -4,7 +4,6 @@ import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTranslation } from "react-i18next";
 import { Button, Surface } from "heroui-native";
-import { Ionicons } from "@expo/vector-icons";
 import { LibraryBig, Sparkle, Tag, X } from "lucide-react-native"
 import { useEffect, useState, useMemo } from "react";
 import { router } from "expo-router";

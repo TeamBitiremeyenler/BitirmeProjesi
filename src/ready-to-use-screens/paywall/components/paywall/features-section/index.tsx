@@ -6,7 +6,7 @@ import { GradientText } from "@/src/shared/components/gradient-text";
 
 // raycast-paywall-screen-animation 🔽
 
-// Animation notes:
+// Animation details:
 // - This section animates in/out via Reanimated's entering/exiting presets supplied by parent.
 // - Layout changes use a springified LinearTransition to keep reflows snappy and consistent across items.
 // - We pivot transforms from the bottom to mimic cards growing from the stack baseline (Raycast-style).

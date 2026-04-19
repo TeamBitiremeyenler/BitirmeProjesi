@@ -18,15 +18,21 @@ import {
 } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import { StatusBar } from 'expo-status-bar';
-import { ChevronLeft, Pencil, Share2, Trash2, Sparkles } from 'lucide-react-native';
+import { ChevronLeft, Pencil, Share2, Trash2 } from 'lucide-react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ZoomableImage } from '@/src/components/photo-detail/ZoomableImage';
-import { uploadSearchablePhoto } from '@/src/lib/api/upload';
-import { getGalleryCacheSnapshot, subscribeGalleryCache, warmRemainingLibraryAssets } from '@/src/lib/gallery-cache';
-import { getPickedAsset, listPickedAssets, type PickedAssetEntry } from '@/src/lib/local-sync-store';
-import { getAssetById, getVersionedMediaUri, type Asset, type AssetInfo } from '@/src/lib/media-library';
+import { deleteIndexedPhoto } from '@/src/lib/api/search';
+import {
+    getGalleryCacheSnapshot,
+    removeCachedLibraryAssets,
+    removeCachedPickedAssets,
+    subscribeGalleryCache,
+    warmRemainingLibraryAssets,
+} from '@/src/lib/gallery-cache';
+import { getPickedAsset, listPickedAssets, removePickedAsset, type PickedAssetEntry } from '@/src/lib/local-sync-store';
+import { getAssetById, getVersionedMediaUri, requestMediaPermission, type Asset, type AssetInfo } from '@/src/lib/media-library';
 import { MOCK_PHOTOS } from '@/src/lib/mock-photos';
 import { goBackOrReplace } from '@/src/lib/navigation';
 import { removeSavedLibraryAsset } from '@/src/lib/saved-assets-store';
@@ -103,8 +109,8 @@ function toGalleryPhotoFromPicked(entry: PickedAssetEntry): GalleryPhoto | null 
         filename: entry.asset.filename,
         creationTime: entry.asset.creationTime ?? Date.now(),
         modificationTime: entry.asset.creationTime ?? Date.now(),
-        width: 0,
-        height: 0,
+        width: entry.asset.width ?? 0,
+        height: entry.asset.height ?? 0,
         source: 'picked',
     };
 }
@@ -143,8 +149,6 @@ export default function PhotoDetail() {
     const [measuredSize, setMeasuredSize] = useState<{ width: number; height: number } | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [isIndexing, setIsIndexing] = useState(false);
-    const [indexStatus, setIndexStatus] = useState<string | null>(null);
     const [thumbPreviewIndex, setThumbPreviewIndex] = useState<number | null>(null);
     const [isThumbRailReady, setIsThumbRailReady] = useState(false);
     const [assetRefreshTick, setAssetRefreshTick] = useState(0);
@@ -264,6 +268,23 @@ export default function PhotoDetail() {
 
                     const pickedAsset = await getPickedAsset(photoId);
 
+                    if (pickedAsset?.assetId) {
+                        try {
+                            await getAssetById(pickedAsset.assetId);
+                        } catch {
+                            await deleteIndexedPhoto(photoId).catch(() => undefined);
+                            await removePickedAsset(photoId);
+                            removeCachedPickedAssets([photoId]);
+
+                            if (isMounted) {
+                                setGalleryPhotos((prev) => prev.filter((photo) => photo.id !== photoId));
+                                setError('Photo not found.');
+                                setIsLoading(false);
+                            }
+                            return;
+                        }
+                    }
+
                     if (pickedAsset?.uri && isMounted) {
                         setGalleryPhotos((prev) => mergeCurrentPhotoIntoGallery(prev, {
                             id: photoId,
@@ -271,8 +292,8 @@ export default function PhotoDetail() {
                             filename: pickedAsset.filename,
                             creationTime: pickedAsset.creationTime ?? Date.now(),
                             modificationTime: pickedAsset.creationTime ?? Date.now(),
-                            width: 0,
-                            height: 0,
+                            width: pickedAsset.width ?? 0,
+                            height: pickedAsset.height ?? 0,
                             source: 'picked',
                         }));
                         setIsLoading(false);
@@ -528,6 +549,12 @@ export default function PhotoDetail() {
             } catch {
                 if (isMounted) {
                     setCurrentAsset(null);
+                    delete assetInfoCacheRef.current[currentPhotoId];
+                    removeCachedLibraryAssets([currentPhotoId]);
+                    await removeSavedLibraryAsset(currentPhotoId);
+                    setGalleryPhotos((prev) => prev.filter((photo) => photo.id !== currentPhotoId));
+                    setError('Photo not found.');
+                    setIsLoading(false);
                 }
             }
         }
@@ -625,6 +652,60 @@ export default function PhotoDetail() {
     }, [imageUri]);
 
     const handleDelete = useCallback(() => {
+        if (currentPhoto?.source === 'mock') {
+            Alert.alert('Unavailable', 'Demo photos are placeholders and are not stored on this device.');
+            return;
+        }
+
+        if (currentPhoto?.source === 'picked') {
+            Alert.alert(
+                'Remove Photo',
+                'This photo will be removed from Smart Gallery, its search data, and the original device gallery item when available.',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                        text: 'Remove',
+                        style: 'destructive',
+                        onPress: async () => {
+                            try {
+                                const pickedAsset = await getPickedAsset(currentPhoto.id);
+                                const originalAssetId = pickedAsset?.assetId?.trim();
+
+                                if (originalAssetId) {
+                                    const hasPermission = await requestMediaPermission();
+                                    if (!hasPermission) {
+                                        Alert.alert('Permission Required', 'Storage permission is needed to delete the original photo.');
+                                        return;
+                                    }
+
+                                    const originalAsset = await getAssetById(originalAssetId).catch(() => null);
+                                    if (originalAsset) {
+                                        const deleted = await MediaLibrary.deleteAssetsAsync([originalAsset]);
+                                        if (!deleted) {
+                                            Alert.alert('Delete Cancelled', 'The photo was not deleted from your device.');
+                                            return;
+                                        }
+                                    }
+
+                                    await removeSavedLibraryAsset(originalAssetId);
+                                    removeCachedLibraryAssets([originalAssetId]);
+                                }
+
+                                await deleteIndexedPhoto(currentPhoto.id).catch(() => undefined);
+                                await removePickedAsset(currentPhoto.id);
+                                removeCachedPickedAssets([currentPhoto.id]);
+                                goBackOrReplace(router, '/home');
+                            } catch (deleteError) {
+                                console.error('Picked delete error:', deleteError);
+                                Alert.alert('Error', 'Could not remove the photo.');
+                            }
+                        },
+                    },
+                ],
+            );
+            return;
+        }
+
         if (!activeAsset) {
             Alert.alert('Unavailable', 'Only device gallery photos can be deleted from here.');
             return;
@@ -640,13 +721,21 @@ export default function PhotoDetail() {
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            const { status } = await MediaLibrary.requestPermissionsAsync();
-                            if (status !== 'granted') {
+                            const hasPermission = await requestMediaPermission();
+                            if (!hasPermission) {
                                 Alert.alert('Permission Required', 'Storage permission is needed to delete photos.');
                                 return;
                             }
-                            await MediaLibrary.deleteAssetsAsync([activeAsset.id]);
+                            const deleted = await MediaLibrary.deleteAssetsAsync([activeAsset]);
+                            if (!deleted) {
+                                Alert.alert('Delete Cancelled', 'The photo was not deleted from your device.');
+                                return;
+                            }
+
+                            await deleteIndexedPhoto(activeAsset.id).catch(() => undefined);
                             await removeSavedLibraryAsset(activeAsset.id);
+                            removeCachedLibraryAssets([activeAsset.id]);
+                            setGalleryPhotos((prev) => prev.filter((photo) => photo.id !== activeAsset.id));
                             goBackOrReplace(router, '/home');
                         } catch (deleteError) {
                             console.error('Delete error:', deleteError);
@@ -656,54 +745,7 @@ export default function PhotoDetail() {
                 },
             ],
         );
-    }, [activeAsset, router]);
-
-    const handleIndexForSearch = useCallback(async () => {
-        if (!currentPhotoId || !activeAsset) return;
-
-        setIsIndexing(true);
-        setIndexStatus(null);
-
-        try {
-            const result = await uploadSearchablePhoto({
-                assetId: currentPhotoId,
-                asset: activeAsset,
-            });
-
-            setIndexStatus('Photo queued for semantic search. Wait 5-10 seconds, then search from Home.');
-            Alert.alert('Indexed', `Upload queued. Image UUID: ${result.imageUuid}`);
-        } catch (uploadError) {
-            const message =
-                uploadError instanceof Error
-                    ? uploadError.message
-                    : 'Upload failed.';
-
-            setIndexStatus(`Indexing failed: ${message}`);
-        } finally {
-            setIsIndexing(false);
-        }
-    }, [activeAsset, currentPhotoId]);
-
-    const handleAiSearchPress = useCallback(() => {
-        if (!currentPhoto) return;
-
-        if (currentPhoto.source === 'mock') {
-            Alert.alert('Unavailable', 'Demo photos cannot be indexed.');
-            return;
-        }
-
-        if (currentPhoto.source === 'picked') {
-            Alert.alert('Already Available', 'Picked photos are already available for backend search testing.');
-            return;
-        }
-
-        if (!activeAsset) {
-            Alert.alert('Unavailable', 'This photo is still syncing from the device library.');
-            return;
-        }
-
-        void handleIndexForSearch();
-    }, [activeAsset, currentPhoto, handleIndexForSearch]);
+    }, [activeAsset, currentPhoto, router]);
 
     const showPhotoAtIndex = useCallback((index: number) => {
         if (!galleryPhotos[index]) return;
@@ -972,19 +1014,6 @@ export default function PhotoDetail() {
                         <Text style={styles.actionTabLabel}>Edit</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity
-                        onPress={handleAiSearchPress}
-                        style={[styles.actionTab, isIndexing && styles.actionTabDisabled]}
-                        disabled={isIndexing}
-                    >
-                        {isIndexing ? (
-                            <ActivityIndicator color="#c7d2fe" />
-                        ) : (
-                            <Sparkles size={22} strokeWidth={1.8} color="#c7d2fe" />
-                        )}
-                        <Text style={[styles.actionTabLabel, styles.actionTabLabelAccent]}>AI Search</Text>
-                    </TouchableOpacity>
-
                     <TouchableOpacity onPress={handleDelete} style={styles.actionTab}>
                         <Trash2 size={22} strokeWidth={1.8} color="#ef4444" />
                         <Text style={[styles.actionTabLabel, styles.actionTabLabelDanger]}>Delete</Text>
@@ -1028,7 +1057,6 @@ export default function PhotoDetail() {
                         <View style={{ height: Math.max(insets.bottom, 8) }} />
                     )}
 
-                    {indexStatus ? <Text style={styles.indexStatus}>{indexStatus}</Text> : null}
                 </Animated.View>
             </View>
         </View>
@@ -1080,9 +1108,6 @@ const styles = StyleSheet.create({
         gap: 4,
         paddingVertical: 4,
     },
-    actionTabDisabled: {
-        opacity: 0.7,
-    },
     actionTabLabel: {
         color: '#e5e7eb',
         fontSize: 11,
@@ -1091,9 +1116,6 @@ const styles = StyleSheet.create({
     },
     actionTabLabelDanger: {
         color: '#ef4444',
-    },
-    actionTabLabelAccent: {
-        color: '#c7d2fe',
     },
     thumbRail: {
         minHeight: THUMB_SIZE + 4,
@@ -1117,13 +1139,5 @@ const styles = StyleSheet.create({
     thumbImage: {
         width: '100%',
         height: '100%',
-    },
-    indexStatus: {
-        paddingHorizontal: 16,
-        paddingBottom: 10,
-        fontSize: 12,
-        lineHeight: 18,
-        textAlign: 'center',
-        color: '#9ca3af',
     },
 });

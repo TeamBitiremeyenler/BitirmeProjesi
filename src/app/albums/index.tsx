@@ -14,20 +14,12 @@ import { useRouter } from 'expo-router';
 import * as MediaLibrary from 'expo-media-library';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
-import { MOCK_PHOTOS } from '@/src/lib/mock-photos';
 import { goBackOrReplace } from '@/src/lib/navigation';
 
 const COLUMNS = 2;
 const GAP = 8;
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CELL_SIZE = Math.floor((SCREEN_WIDTH - GAP * (COLUMNS + 1)) / COLUMNS);
-
-// Mock albums grouped from mock photos for demo mode
-const MOCK_ALBUMS = [
-    { id: 'mock-recent', title: 'Recents', count: 9, thumbUri: MOCK_PHOTOS[0].uri },
-    { id: 'mock-favorites', title: 'Favorites', count: 6, thumbUri: MOCK_PHOTOS[9].uri },
-    { id: 'mock-camera', title: 'Camera Roll', count: 9, thumbUri: MOCK_PHOTOS[18].uri },
-];
 
 const SMART_ALBUM_PRIORITY: Record<string, number> = {
     recents: 0,
@@ -54,8 +46,7 @@ export default function AlbumsScreen() {
         try {
             const { status } = await MediaLibrary.getPermissionsAsync();
             if (status !== 'granted') {
-                // Demo mode — show mock albums
-                setAlbums(MOCK_ALBUMS);
+                setAlbums([]);
                 return;
             }
             const all = await MediaLibrary.getAlbumsAsync({ includeSmartAlbums: true });
@@ -91,7 +82,7 @@ export default function AlbumsScreen() {
                     })
             );
         } catch {
-            setAlbums(MOCK_ALBUMS);
+            setAlbums([]);
         } finally {
             setIsLoading(false);
         }

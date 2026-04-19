@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
-import { saveMapping, savePickedAsset } from '@/src/lib/local-sync-store';
+import * as FileSystem from 'expo-file-system/legacy';
+import { getBackendUUID, getPickedAsset, saveMapping, savePickedAsset } from '@/src/lib/local-sync-store';
 import type { AssetInfo } from '@/src/lib/media-library';
 
 type UploadSearchablePhotoParams = {
@@ -18,6 +19,37 @@ type UploadSearchablePhotoResponse = {
     imageUuid: string;
     photoId: string;
 };
+
+export const DUPLICATE_SMART_GALLERY_PHOTO = 'duplicate_smart_gallery_photo';
+
+function stableHash(value: string): string {
+    let hash = 5381;
+
+    for (let index = 0; index < value.length; index += 1) {
+        hash = ((hash << 5) + hash) + value.charCodeAt(index);
+        hash >>>= 0;
+    }
+
+    return hash.toString(16);
+}
+
+async function buildPickedSourceId(params: { uri: string; assetId?: string | null }): Promise<string> {
+    const deviceAssetId = params.assetId?.trim();
+    if (deviceAssetId) {
+        return `picked:${deviceAssetId}`;
+    }
+
+    try {
+        const info = await FileSystem.getInfoAsync(params.uri, { md5: true });
+        if (info.exists && info.md5) {
+            return `picked:file-${info.md5}`;
+        }
+    } catch {
+        // Fall back to the URI hash when the picker file cannot be read.
+    }
+
+    return `picked:uri-${stableHash(params.uri)}`;
+}
 
 function resolveBackendBaseUrl(): string | null {
     const envUrl = process.env.EXPO_PUBLIC_BACKEND_URL?.trim();
@@ -118,10 +150,21 @@ export async function uploadFileForSearch({
 
 export async function uploadPickedPhotoForSearch(params: {
     uri: string;
+    assetId?: string | null;
     filename?: string | null;
+    width?: number | null;
+    height?: number | null;
     creationTime?: number;
 }): Promise<UploadSearchablePhotoResponse> {
-    const sourceId = `picked:${Date.now()}`;
+    const sourceId = await buildPickedSourceId(params);
+    const [existingPickedAsset, existingBackendUUID] = await Promise.all([
+        getPickedAsset(sourceId),
+        getBackendUUID(sourceId),
+    ]);
+
+    if (existingPickedAsset || existingBackendUUID) {
+        throw new Error(DUPLICATE_SMART_GALLERY_PHOTO);
+    }
 
     const result = await uploadFileForSearch({
         sourceId,
@@ -132,7 +175,10 @@ export async function uploadPickedPhotoForSearch(params: {
 
     await savePickedAsset(sourceId, {
         uri: params.uri,
+        assetId: params.assetId,
         filename: params.filename,
+        width: params.width,
+        height: params.height,
         creationTime: params.creationTime,
     });
 

@@ -1,6 +1,6 @@
 import PageProvider from "@/src/components/page-provider";
 import { ScrollView, Text, View, TouchableOpacity } from "react-native";
-import { X, Check, Bell, Star } from "lucide-react-native";
+import { X, Check, Search, Star } from "lucide-react-native";
 import { Button, RadioGroup, Surface } from "heroui-native";
 import { useEffect, useState } from "react";
 import { useRouter } from "expo-router";
@@ -47,7 +47,7 @@ export default function SecondPaywall() {
                 </View>
 
                 <View>
-                    {/* Stepper: Today - Calendar Feature  */}
+                    {/* Stepper: Today - premium gallery access */}
                     <View className="flex-row">
                         <View className="items-center">
                             <View className="bg-accent rounded-full p-3 z-10">
@@ -61,11 +61,11 @@ export default function SecondPaywall() {
                         </View>
                     </View>
 
-                    {/* Stepper: Day 5 - Notifications [cite: 2] */}
+                    {/* Stepper: Day 5 - trial check-in */}
                     <View className="flex-row">
                         <View className="items-center">
                             <View className="bg-muted/40 rounded-full p-3 z-10">
-                                <Bell size={24} color="white" />
+                                <Search size={24} color="white" />
                             </View>
                             <View className="w-0.5 h-16 bg-gray-200" />
                         </View>

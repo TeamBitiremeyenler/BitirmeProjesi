@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Calendar, LayoutGrid, Search, UserRound, Users, X } from 'lucide-react-native';
+import { LayoutGrid, Search, UserRound, Users, X } from 'lucide-react-native';
 
 import { GalleryGrid } from '@/src/components/gallery/GalleryGrid';
 import { PhotoResultsGrid, type SearchResultPhoto } from '@/src/components/gallery/PhotoResultsGrid';
@@ -127,9 +127,6 @@ export default function HomePage() {
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => router.push('/albums' as any)} style={styles.iconBtn}>
                         <LayoutGrid size={22} color="#737272" />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => router.replace('/calendar')} style={styles.iconBtn}>
-                        <Calendar size={22} color="#737272" />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => router.replace('/profile')} style={styles.iconBtn}>
                         <UserRound size={22} color="#737272" />

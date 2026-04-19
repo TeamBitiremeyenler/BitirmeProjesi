@@ -67,6 +67,21 @@ def delete_index_records_for_user(user_id: str) -> int:
         return deleted_count
 
 
+def delete_index_record_for_photo(user_id: str, photo_id: str) -> int:
+    with _LOCK:
+        items = _read_store()
+        kept_items = [
+            item for item in items
+            if not (item.get("user_id") == user_id and item.get("photo_id") == photo_id)
+        ]
+        deleted_count = len(items) - len(kept_items)
+
+        if deleted_count > 0:
+            _write_store(kept_items)
+
+        return deleted_count
+
+
 def rename_face_cluster_references(*, user_id: str, cluster_id: str, new_name: str) -> bool:
     changed = False
 

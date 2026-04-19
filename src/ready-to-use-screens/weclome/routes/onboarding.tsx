@@ -3,7 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { Button } from "heroui-native";
 import { ChevronDown } from "lucide-react-native";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform, Pressable, Text, useWindowDimensions, View } from "react-native";
 import { FlatList, Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -38,6 +38,7 @@ const SWIPE_UP_THRESHOLD = 20;
 export const Onboarding = () => {
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
   const isAppleSignInSupported = Platform.OS === "ios";
+  const { t } = useTranslation();
 
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
@@ -59,6 +60,21 @@ export const Onboarding = () => {
   // Stores translateY value at gesture start, used to calculate relative movement
   // Critical for pan gesture: accumulates translation from gesture start, not absolute position
   const gestureStartY = useSharedValue(0);
+
+  const SLIDES: OnboardingSlide[] = useMemo(() => [
+    {
+      bgColor: "#1A8E3C",
+      duration: 3000,
+      title: t("welcome.sliderTitles.first"),
+      imagePath: require("@/assets/real assets/startScreen1.png")
+    },
+    {
+      bgColor: "#D4D0CB",
+      duration: 3000,
+      title: t("welcome.sliderTitles.second"),
+      imagePath: require("@/assets/real assets/startScreen2.png")
+    },
+  ], [t]);
 
   // Scroll handler: updates shared values for scroll-driven animations
   // Runs on UI thread (worklet), enabling 60fps animations without JS bridge overhead
@@ -82,11 +98,14 @@ export const Onboarding = () => {
   });
 
   const handleScrollToIndex = useCallback((index: number) => {
+    const itemCount = SLIDES.length + 1;
+    const nextIndex = index >= itemCount ? 0 : Math.max(index, 0);
+
     horizontalListRef.current?.scrollToIndex({
-      index,
+      index: nextIndex,
       animated: true,
     });
-  }, []);
+  }, [SLIDES.length]);
 
   // Single tap gesture: advances to next slide when carousel is collapsed
   // maxDuration: 250ms ensures quick taps register, longer presses ignored
@@ -237,22 +256,6 @@ export const Onboarding = () => {
       })
     );
   };
-
-  const { t } = useTranslation();
-  const SLIDES: OnboardingSlide[] = [
-    {
-      bgColor: "#1A8E3C",
-      duration: 3000,
-      title: t("welcome.sliderTitles.first"),
-      imagePath: require("@/assets/real assets/startScreen1.png")
-    },
-    {
-      bgColor: "#D4D0CB",
-      duration: 3000,
-      title: t("welcome.sliderTitles.second"),
-      imagePath: require("@/assets/real assets/startScreen2.png")
-    },
-  ];
 
   const appleSignInHandler = async () => {
     if (!isAppleSignInSupported) return;

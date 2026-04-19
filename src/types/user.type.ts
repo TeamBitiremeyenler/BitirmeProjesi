@@ -1,6 +1,6 @@
 import { Session } from "@supabase/supabase-js";
 
-export type PrimaryUseCase = 'work' | 'social' | 'school' | 'reminder';
+export type PrimaryUseCase = 'work' | 'social' | 'school' | 'travel';
 
 export interface Profile {
     id: string;

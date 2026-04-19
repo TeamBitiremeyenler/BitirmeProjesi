@@ -115,7 +115,7 @@ export default function AuthProvider({ children }: PropsWithChildren) {
 
         const {
             data: { subscription },
-        } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        } = supabase.auth.onAuthStateChange(async (_event: string, session: Session | null) => {
             console.log('Auth state changed:', { event: _event });
 
             setSession(session);

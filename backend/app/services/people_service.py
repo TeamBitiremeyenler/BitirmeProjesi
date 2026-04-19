@@ -623,3 +623,43 @@ def clear_people_records_for_user(user_id: str) -> dict[str, int]:
         "clusters_deleted": deleted_clusters,
         "detections_deleted": deleted_detections,
     }
+
+
+def clear_people_records_for_photo(user_id: str, photo_id: str) -> dict[str, int]:
+    with _LOCK:
+        store = _read_store()
+
+        clusters = store.get("clusters", [])
+        detections = store.get("detections", [])
+
+        kept_detections = [
+            detection for detection in detections
+            if not (
+                detection.get("user_id") == user_id
+                and detection.get("photo_id") == photo_id
+            )
+        ]
+        remaining_cluster_ids = {
+            str(detection.get("cluster_id"))
+            for detection in kept_detections
+            if detection.get("user_id") == user_id and detection.get("cluster_id")
+        }
+        kept_clusters = [
+            cluster for cluster in clusters
+            if cluster.get("user_id") != user_id
+            or str(cluster.get("id")) in remaining_cluster_ids
+        ]
+
+        deleted_detections = len(detections) - len(kept_detections)
+        deleted_clusters = len(clusters) - len(kept_clusters)
+
+        if deleted_clusters > 0 or deleted_detections > 0:
+            _write_store({
+                "clusters": kept_clusters,
+                "detections": kept_detections,
+            })
+
+    return {
+        "clusters_deleted": deleted_clusters,
+        "detections_deleted": deleted_detections,
+    }

@@ -9,7 +9,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SlideItem } from "../components/slide-item";
-import Pagination from "./pagination";
+import { Pagination } from "./pagination";
 import { CarouselProps, OnboardingSlide } from "./lib/types";
 import { scheduleOnRN } from "react-native-worklets";
 import { FlatList } from "react-native-gesture-handler";
@@ -39,7 +39,7 @@ const Carousel: FC<CarouselProps> = ({
 
   // Duplicate first slide at end to enable infinite loop scrolling
   // When user reaches duplicated slide, we instantly jump back to real first slide
-  const data = useMemo(() => [...SLIDES, SLIDES.at(0)!], []);
+  const data = useMemo(() => [...SLIDES, SLIDES.at(0)!], [SLIDES]);
 
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -50,11 +50,12 @@ const Carousel: FC<CarouselProps> = ({
         // Get the first viewable item (should be only one with pagingEnabled)
         const viewableItem = viewableItems[0];
         if (viewableItem && viewableItem.index !== null) {
-          setCurrentSlideIndex(viewableItem.index);
+          const nextIndex = viewableItem.index >= SLIDES.length ? 0 : viewableItem.index;
+          setCurrentSlideIndex(nextIndex);
         }
       }
     },
-    [setCurrentSlideIndex]
+    [SLIDES.length, setCurrentSlideIndex]
   );
 
   // Viewability config: only trigger when slide is 100% visible (pagingEnabled ensures this)
@@ -65,11 +66,13 @@ const Carousel: FC<CarouselProps> = ({
   }).current;
 
   const handleScrollToIndex = useCallback((index: number) => {
+    const nextIndex = index >= data.length ? 0 : Math.max(index, 0);
+
     horizontalListRef.current?.scrollToIndex({
-      index,
+      index: nextIndex,
       animated: true,
     });
-  }, []);
+  }, [data.length, horizontalListRef]);
 
   // Animated container style: translates carousel vertically for swipe-up gesture
   // translateY: 0 = collapsed (default), -topCarouselOffset = fully expanded

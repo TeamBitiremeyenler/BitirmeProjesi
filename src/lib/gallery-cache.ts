@@ -75,6 +75,17 @@ export function replaceCachedLibraryAssets(assets: Asset[], cursor?: string, has
     emit();
 }
 
+export function removeCachedLibraryAssets(assetIds: string[]) {
+    if (assetIds.length === 0) return;
+
+    const ids = new Set(assetIds);
+    cacheState = {
+        ...cacheState,
+        libraryAssets: cacheState.libraryAssets.filter((asset) => !ids.has(asset.id)),
+    };
+    emit();
+}
+
 export function appendCachedLibraryAssets(assets: Asset[], cursor?: string, hasMore = false) {
     cacheState = {
         ...cacheState,
@@ -89,6 +100,17 @@ export function replaceCachedPickedAssets(entries: PickedAssetEntry[]) {
     cacheState = {
         ...cacheState,
         pickedAssets: [...entries],
+    };
+    emit();
+}
+
+export function removeCachedPickedAssets(assetIds: string[]) {
+    if (assetIds.length === 0) return;
+
+    const ids = new Set(assetIds);
+    cacheState = {
+        ...cacheState,
+        pickedAssets: cacheState.pickedAssets.filter((entry) => !ids.has(entry.id)),
     };
     emit();
 }

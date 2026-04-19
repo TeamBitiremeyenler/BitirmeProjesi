@@ -65,7 +65,7 @@
             --surface: oklch(0.2 0.03 45);
             --surface-foreground: oklch(0.92 0.01 45);
 
-            /* Overlay: Popovers and smart notifications  */
+            /* Overlay: Popovers and gallery messages  */
             --overlay: oklch(0.22 0.03 45);
             --overlay-foreground: oklch(0.92 0.01 45);
 
@@ -74,7 +74,7 @@
             --default: oklch(0.25 0.04 45);
             --default-foreground: oklch(0.88 0.02 45);
 
-            /* Accent: Glowing orange for dark mode notifications [cite: 2] */
+            /* Accent: Glowing orange for dark mode highlights [cite: 2] */
             --accent: oklch(0.75 0.18 50);
             --accent-foreground: oklch(0.15 0.02 45);
 

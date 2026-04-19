@@ -8,10 +8,11 @@ from typing import Any
 from app.core.config import settings
 from app.services.embedding_service import generate_query_embedding
 from app.services.local_index_store import (
+    delete_index_record_for_photo,
     delete_index_records_for_user,
     get_index_records_for_user,
 )
-from app.services.people_service import clear_people_records_for_user
+from app.services.people_service import clear_people_records_for_photo, clear_people_records_for_user
 
 DEFAULT_MATCH_LIMIT = 24
 MAX_MATCH_LIMIT = 60
@@ -159,11 +160,17 @@ class SearchService:
 
         return SearchResponse(results=local_results, mode="local_dev_store")
 
-    def clear_user_index_data(self, user_id: str) -> dict[str, Any]:
+    def clear_user_index_data(self, user_id: str, *, strict: bool = False) -> dict[str, Any]:
         image_uuids: list[str] = []
         deleted_face_detections = 0
         deleted_images = 0
         deleted_face_clusters = 0
+        errors: list[str] = []
+
+        def record_cleanup_error(message: str, error: Exception) -> None:
+            cleanup_error = f"{message}: {error}"
+            errors.append(cleanup_error)
+            print(cleanup_error)
 
         if self.supabase is not None:
             try:
@@ -180,7 +187,7 @@ class SearchService:
                     if row.get("uuid")
                 ]
             except Exception as fetch_error:
-                print(f"Could not fetch user images for cleanup: {fetch_error}")
+                record_cleanup_error("Could not fetch user images for cleanup", fetch_error)
 
             if image_uuids:
                 for image_uuid_chunk in chunked(image_uuids, SUPABASE_DELETE_CHUNK_SIZE):
@@ -193,7 +200,7 @@ class SearchService:
                         )
                         deleted_face_detections += len(getattr(deleted_rows, "data", None) or [])
                     except Exception as detections_error:
-                        print(f"Could not delete face detections for chunk: {detections_error}")
+                        record_cleanup_error("Could not delete face detections for chunk", detections_error)
 
             try:
                 deleted_images_response = (
@@ -204,7 +211,7 @@ class SearchService:
                 )
                 deleted_images = len(getattr(deleted_images_response, "data", None) or [])
             except Exception as images_error:
-                print(f"Could not delete user images: {images_error}")
+                record_cleanup_error("Could not delete user images", images_error)
 
             try:
                 deleted_clusters_response = (
@@ -215,10 +222,13 @@ class SearchService:
                 )
                 deleted_face_clusters = len(getattr(deleted_clusters_response, "data", None) or [])
             except Exception as clusters_error:
-                print(f"Could not delete face clusters: {clusters_error}")
+                record_cleanup_error("Could not delete face clusters", clusters_error)
 
         local_search_deleted = delete_index_records_for_user(user_id)
         local_people_deleted = clear_people_records_for_user(user_id)
+
+        if strict and errors:
+            raise RuntimeError("; ".join(errors))
 
         return {
             "user_id": user_id,
@@ -231,6 +241,81 @@ class SearchService:
                 "search_records_deleted": local_search_deleted,
                 **local_people_deleted,
             },
+            "errors": errors,
+        }
+
+    def delete_photo_index_data(self, user_id: str, photo_id: str, *, strict: bool = False) -> dict[str, Any]:
+        image_uuids: list[str] = []
+        deleted_face_detections = 0
+        deleted_images = 0
+        errors: list[str] = []
+
+        def record_cleanup_error(message: str, error: Exception) -> None:
+            cleanup_error = f"{message}: {error}"
+            errors.append(cleanup_error)
+            print(cleanup_error)
+
+        if self.supabase is not None:
+            try:
+                image_rows = (
+                    self.supabase.table("images")
+                    .select("uuid")
+                    .eq("user_id", user_id)
+                    .eq("photo_id", photo_id)
+                    .limit(1000)
+                    .execute()
+                )
+                image_uuids = [
+                    str(row.get("uuid"))
+                    for row in (getattr(image_rows, "data", None) or [])
+                    if row.get("uuid")
+                ]
+            except Exception as fetch_error:
+                record_cleanup_error("Could not fetch photo images for cleanup", fetch_error)
+
+            if image_uuids:
+                for image_uuid_chunk in chunked(image_uuids, SUPABASE_DELETE_CHUNK_SIZE):
+                    try:
+                        deleted_rows = (
+                            self.supabase.table("face_detections")
+                            .delete()
+                            .in_("image_uuid", image_uuid_chunk)
+                            .execute()
+                        )
+                        deleted_face_detections += len(getattr(deleted_rows, "data", None) or [])
+                    except Exception as detections_error:
+                        record_cleanup_error("Could not delete photo face detections", detections_error)
+
+            try:
+                deleted_images_response = (
+                    self.supabase.table("images")
+                    .delete()
+                    .eq("user_id", user_id)
+                    .eq("photo_id", photo_id)
+                    .execute()
+                )
+                deleted_images = len(getattr(deleted_images_response, "data", None) or [])
+            except Exception as images_error:
+                record_cleanup_error("Could not delete photo images", images_error)
+
+        local_search_deleted = delete_index_record_for_photo(user_id, photo_id)
+        local_people_deleted = clear_people_records_for_photo(user_id, photo_id)
+
+        if strict and errors:
+            raise RuntimeError("; ".join(errors))
+
+        return {
+            "user_id": user_id,
+            "photo_id": photo_id,
+            "supabase": {
+                "images_deleted": deleted_images,
+                "face_detections_deleted": deleted_face_detections,
+            },
+            "local": {
+                "search_records_deleted": local_search_deleted,
+                **local_people_deleted,
+            },
+            "errors": errors,
         }
 
     def _search_with_rpc(

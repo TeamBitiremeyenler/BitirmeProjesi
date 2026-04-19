@@ -14,7 +14,6 @@ type SavedAssetRecord = Pick<
     | 'mediaSubtypes'
     | 'width'
     | 'height'
-    | 'fileSize'
     | 'creationTime'
     | 'modificationTime'
     | 'duration'
@@ -50,7 +49,6 @@ function normalizeSavedAsset(asset: Asset): SavedAssetRecord {
         mediaSubtypes: asset.mediaSubtypes ?? [],
         width: asset.width ?? 0,
         height: asset.height ?? 0,
-        fileSize: asset.fileSize ?? 0,
         creationTime,
         modificationTime,
         duration: asset.duration ?? 0,
@@ -107,5 +105,19 @@ export async function saveSavedLibraryAsset(asset: Asset): Promise<void> {
 export async function removeSavedLibraryAsset(assetId: string): Promise<void> {
     const current = await readSavedAssets();
     await writeSavedAssets(current.filter((asset) => asset.id !== assetId));
+    emit();
+}
+
+export async function removeSavedLibraryAssets(assetIds: string[]): Promise<void> {
+    if (assetIds.length === 0) return;
+
+    const ids = new Set(assetIds);
+    const current = await readSavedAssets();
+    await writeSavedAssets(current.filter((asset) => !ids.has(asset.id)));
+    emit();
+}
+
+export async function clearSavedLibraryAssets(): Promise<void> {
+    await AsyncStorage.removeItem(KEY);
     emit();
 }

@@ -2,9 +2,9 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-n
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  Camera,
-  Bell,
   Library,
+  Search,
+  Users,
   X,
 } from "lucide-react-native";
 import React, { useRef, useState } from "react";
@@ -90,21 +90,21 @@ export const Paywall = () => {
           <FeatureItem
             icon={
               <IconContainer className="bg-blue-600">
-                <Camera size={14} color={"white"} strokeWidth={3} />
+                <Search size={14} color={"white"} strokeWidth={3} />
               </IconContainer>
             }
-            title={t("thirdPaywall.features.calendarScan.title")}
-            description={t("thirdPaywall.features.calendarScan.description")}
+            title={t("thirdPaywall.features.visualSearch.title")}
+            description={t("thirdPaywall.features.visualSearch.description")}
           />
           <Divider />
           <FeatureItem
             icon={
               <IconContainer className="bg-orange-500">
-                <Bell size={14} color={"white"} strokeWidth={3} />
+                <Users size={14} color={"white"} strokeWidth={3} />
               </IconContainer>
             }
-            title={t("thirdPaywall.features.smartNotes.title")}
-            description={t("thirdPaywall.features.smartNotes.description")}
+            title={t("thirdPaywall.features.peopleAlbums.title")}
+            description={t("thirdPaywall.features.peopleAlbums.description")}
           />
           <Divider />
           <FeatureItem

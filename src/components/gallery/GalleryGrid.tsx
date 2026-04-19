@@ -30,18 +30,22 @@ import {
     requestMediaPermission,
     type Asset,
 } from '@/src/lib/media-library';
-import { uploadPickedPhotoForSearch } from '@/src/lib/api/upload';
-import { listPickedAssets } from '@/src/lib/local-sync-store';
-import { MOCK_PHOTOS } from '@/src/lib/mock-photos';
+import { DUPLICATE_SMART_GALLERY_PHOTO, uploadPickedPhotoForSearch } from '@/src/lib/api/upload';
+import { deleteIndexedPhoto } from '@/src/lib/api/search';
+import { getPickedAsset, listPickedAssets, removePickedAsset } from '@/src/lib/local-sync-store';
 import {
     appendCachedLibraryAssets,
+    getGalleryCacheSnapshot,
+    removeCachedLibraryAssets,
+    removeCachedPickedAssets,
     replaceCachedLibraryAssets,
     replaceCachedPickedAssets,
+    subscribeGalleryCache,
     warmRemainingLibraryAssets,
 } from '@/src/lib/gallery-cache';
 import {
     listSavedLibraryAssets,
-    removeSavedLibraryAsset,
+    removeSavedLibraryAssets,
     subscribeSavedLibraryAssets,
 } from '@/src/lib/saved-assets-store';
 import { PhotoThumbnail } from './PhotoThumbnail';
@@ -68,7 +72,16 @@ function buildListItems(sections: { title: string; data: Asset[] }[]): ListItem[
     return items;
 }
 
-function toPickedAsset(entry: { id: string; asset: { uri: string; filename?: string | null; creationTime?: number } }): Asset | null {
+function toPickedAsset(entry: {
+    id: string;
+    asset: {
+        uri: string;
+        filename?: string | null;
+        width?: number | null;
+        height?: number | null;
+        creationTime?: number;
+    };
+}): Asset | null {
     if (!entry.asset.uri) return null;
 
     return {
@@ -77,9 +90,8 @@ function toPickedAsset(entry: { id: string; asset: { uri: string; filename?: str
         uri: entry.asset.uri,
         mediaType: 'photo',
         mediaSubtypes: [],
-        width: 0,
-        height: 0,
-        fileSize: 0,
+        width: entry.asset.width ?? 0,
+        height: entry.asset.height ?? 0,
         creationTime: entry.asset.creationTime ?? Date.now(),
         modificationTime: entry.asset.creationTime ?? Date.now(),
         duration: 0,
@@ -95,13 +107,39 @@ function mergeAssets(primaryAssets: Asset[], secondaryAssets: Asset[]): Asset[] 
     const merged: Asset[] = [];
 
     for (const asset of sorted) {
-        const key = asset.id || asset.uri;
-        if (seen.has(key)) continue;
-        seen.add(key);
+        const keys = getDedupeKeys(asset);
+        if (keys.some((key) => seen.has(key))) continue;
+
+        keys.forEach((key) => seen.add(key));
         merged.push(asset);
     }
 
     return merged;
+}
+
+function isPickedAssetId(id: string): boolean {
+    return id.startsWith('picked:');
+}
+
+function assetIdsSignature(assets: Pick<Asset, 'id'>[]): string {
+    return assets.map((asset) => asset.id).join('|');
+}
+
+function pickedIdsSignature(entries: { id: string }[]): string {
+    return entries.map((entry) => entry.id).join('|');
+}
+
+function getDedupeKeys(asset: Asset): string[] {
+    const keys = [asset.id, asset.uri].filter(Boolean);
+
+    if (isPickedAssetId(asset.id)) {
+        const originalAssetId = asset.id.slice('picked:'.length);
+        if (originalAssetId && !originalAssetId.startsWith('uri-')) {
+            keys.push(originalAssetId);
+        }
+    }
+
+    return keys;
 }
 
 export function GalleryGrid() {
@@ -139,17 +177,93 @@ export function GalleryGrid() {
 
     const refreshPickedAssets = useCallback(async () => {
         const entries = await listPickedAssets();
-        const mapped = entries
+
+        if (permStatus === 'granted') {
+            const staleEntryIds: string[] = [];
+
+            for (const entry of entries) {
+                const originalAssetId = entry.asset.assetId?.trim();
+                if (!originalAssetId) continue;
+
+                try {
+                    await getAssetById(originalAssetId);
+                } catch {
+                    staleEntryIds.push(entry.id);
+                }
+            }
+
+            if (staleEntryIds.length > 0) {
+                await Promise.all(staleEntryIds.map(async (id) => {
+                    await deleteIndexedPhoto(id).catch(() => undefined);
+                    await removePickedAsset(id);
+                }));
+                removeCachedPickedAssets(staleEntryIds);
+            }
+        }
+
+        const nextEntries = await listPickedAssets();
+        const mapped = nextEntries
             .map(toPickedAsset)
             .filter((asset): asset is Asset => asset !== null);
         setPickedAssets(mapped);
-        replaceCachedPickedAssets(entries);
-    }, []);
+        replaceCachedPickedAssets(nextEntries);
+    }, [permStatus]);
 
     const refreshSavedLibraryAssets = useCallback(async () => {
         const saved = await listSavedLibraryAssets();
-        setSavedLibraryAssets(saved);
-    }, []);
+
+        if (permStatus === 'granted') {
+            const staleAssetIds: string[] = [];
+
+            for (const asset of saved) {
+                try {
+                    await getAssetById(asset.id);
+                } catch {
+                    staleAssetIds.push(asset.id);
+                }
+            }
+
+            if (staleAssetIds.length > 0) {
+                await removeSavedLibraryAssets(staleAssetIds);
+                removeCachedLibraryAssets(staleAssetIds);
+            }
+        }
+
+        setSavedLibraryAssets(await listSavedLibraryAssets());
+    }, [permStatus]);
+
+    const pruneMissingLibraryAssets = useCallback(async (candidateAssets = assets) => {
+        if (permStatus !== 'granted' || candidateAssets.length === 0) return [];
+
+        const missingIds: string[] = [];
+        for (const asset of candidateAssets) {
+            if (isPickedAssetId(asset.id)) continue;
+
+            try {
+                const info = await getAssetById(asset.id);
+                if (!info?.id) {
+                    missingIds.push(asset.id);
+                }
+            } catch {
+                missingIds.push(asset.id);
+            }
+        }
+
+        if (missingIds.length === 0) return [];
+
+        const missing = new Set(missingIds);
+        setAssets((prev) => prev.filter((asset) => !missing.has(asset.id)));
+        setSavedLibraryAssets((prev) => prev.filter((asset) => !missing.has(asset.id)));
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            missingIds.forEach((id) => next.delete(id));
+            return next;
+        });
+        await removeSavedLibraryAssets(missingIds);
+        removeCachedLibraryAssets(missingIds);
+
+        return missingIds;
+    }, [assets, permStatus]);
 
     const load = useCallback(async (reset = false) => {
         if (!hasMoreRef.current && !reset) return;
@@ -171,6 +285,8 @@ export function GalleryGrid() {
     const refreshLibraryAssets = useCallback(async () => {
         if (permStatus !== 'granted') return;
 
+        await pruneMissingLibraryAssets();
+
         if (refreshPromiseRef.current) {
             await refreshPromiseRef.current;
             return;
@@ -189,7 +305,7 @@ export function GalleryGrid() {
 
         refreshPromiseRef.current = refreshPromise;
         await refreshPromise;
-    }, [load, permStatus]);
+    }, [load, permStatus, pruneMissingLibraryAssets]);
 
     const startLoad = useCallback(() => {
         setIsLoading(true);
@@ -246,6 +362,39 @@ export function GalleryGrid() {
         if (permStatus === 'granted') startLoad();
     }, [permStatus, startLoad]);
 
+    useEffect(() => subscribeGalleryCache(() => {
+        const snapshot = getGalleryCacheSnapshot();
+
+        setAssets((prev) => (
+            assetIdsSignature(prev) === assetIdsSignature(snapshot.libraryAssets)
+                ? prev
+                : snapshot.libraryAssets
+        ));
+
+        setPickedAssets((prev) => {
+            const nextPickedAssets = snapshot.pickedAssets
+                .map(toPickedAsset)
+                .filter((asset): asset is Asset => asset !== null);
+            return assetIdsSignature(prev) === assetIdsSignature(nextPickedAssets)
+                ? prev
+                : nextPickedAssets;
+        });
+
+        setSelectedIds((prev) => {
+            const allowedIds = new Set([
+                ...snapshot.libraryAssets.map((asset) => asset.id),
+                ...snapshot.pickedAssets.map((entry) => entry.id),
+            ]);
+            const next = new Set([...prev].filter((id) => allowedIds.has(id)));
+            return pickedIdsSignature([...prev].map((id) => ({ id }))) === pickedIdsSignature([...next].map((id) => ({ id })))
+                ? prev
+                : next;
+        });
+
+        cursorRef.current = snapshot.libraryCursor;
+        hasMoreRef.current = snapshot.libraryHasMore;
+    }), []);
+
     useEffect(() => {
         if (permStatus !== 'granted') return;
 
@@ -264,6 +413,8 @@ export function GalleryGrid() {
             if (now - lastRefreshAtRef.current < 700) return;
             lastRefreshAtRef.current = now;
             refreshLibraryAssets().catch(() => undefined);
+            refreshPickedAssets().catch(() => undefined);
+            refreshSavedLibraryAssets().catch(() => undefined);
         };
 
         const appStateSubscription = AppState.addEventListener('change', (nextAppState) => {
@@ -283,7 +434,7 @@ export function GalleryGrid() {
             appStateSubscription.remove();
             mediaLibrarySubscription.remove();
         };
-    }, [permStatus, refreshLibraryAssets]);
+    }, [permStatus, refreshLibraryAssets, refreshPickedAssets, refreshSavedLibraryAssets]);
 
     useFocusEffect(useCallback(() => {
         if (permStatus !== 'granted') return undefined;
@@ -330,18 +481,28 @@ export function GalleryGrid() {
             const selectedAsset = result.assets[0];
             const uploadResult = await uploadPickedPhotoForSearch({
                 uri: selectedAsset.uri,
+                assetId: selectedAsset.assetId,
                 filename: selectedAsset.fileName,
+                width: selectedAsset.width,
+                height: selectedAsset.height,
                 creationTime: Date.now(),
             });
 
             setPickerStatus(
-                'Photo indexed. Wait 5-10 seconds, then search from the Home bar using simple words.'
+                'Photo imported. It will appear in Smart Gallery shortly.'
             );
-            Alert.alert('Indexed', `Upload queued. Image UUID: ${uploadResult.imageUuid}`);
+            Alert.alert('Imported', `Photo saved. Image UUID: ${uploadResult.imageUuid}`);
             await refreshPickedAssets();
         } catch (error) {
+            if (error instanceof Error && error.message === DUPLICATE_SMART_GALLERY_PHOTO) {
+                Alert.alert('Zaten var', "Bu fotoğraf zaten Smart Gallery'de var.");
+                setPickerStatus("Bu fotoğraf zaten Smart Gallery'de var.");
+                await refreshPickedAssets();
+                return;
+            }
+
             const message = error instanceof Error ? error.message : 'Unexpected picker error.';
-            setPickerStatus(`Pick/index failed: ${message}`);
+            setPickerStatus(`Import failed: ${message}`);
         } finally {
             setIsPickingPhoto(false);
         }
@@ -413,17 +574,58 @@ export function GalleryGrid() {
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            const { status } = await MediaLibrary.requestPermissionsAsync();
-                            if (status !== 'granted') {
-                                Alert.alert('Permission Required', 'Storage permission is needed to delete photos.');
-                                return;
+                            const selectedIdList = [...selectedIds];
+                            const pickedIds = selectedIdList.filter(isPickedAssetId);
+                            const libraryIds = selectedIdList.filter((id) => !isPickedAssetId(id));
+
+                            const pickedOriginalAssetIds: string[] = [];
+                            for (const id of pickedIds) {
+                                const pickedAsset = await getPickedAsset(id);
+                                const originalAssetId = pickedAsset?.assetId?.trim();
+                                if (originalAssetId) {
+                                    pickedOriginalAssetIds.push(originalAssetId);
+                                }
                             }
-                            await MediaLibrary.deleteAssetsAsync([...selectedIds]);
-                            for (const id of selectedIds) {
-                                await removeSavedLibraryAsset(id);
+
+                            const deviceAssetIds = [...new Set([...libraryIds, ...pickedOriginalAssetIds])];
+                            if (deviceAssetIds.length > 0) {
+                                const hasPermission = await requestMediaPermission();
+                                if (!hasPermission) {
+                                    Alert.alert('Permission Required', 'Storage permission is needed to delete device photos.');
+                                    return;
+                                }
+
+                                const deleted = await MediaLibrary.deleteAssetsAsync(deviceAssetIds);
+                                if (!deleted) {
+                                    Alert.alert('Delete Cancelled', 'The selected photos were not deleted from your device.');
+                                    return;
+                                }
+
+                                await removeSavedLibraryAssets(deviceAssetIds);
+                                removeCachedLibraryAssets(deviceAssetIds);
+                                const removedDeviceIds = new Set(deviceAssetIds);
+                                setAssets((prev) => prev.filter((asset) => !removedDeviceIds.has(asset.id)));
+                                setSavedLibraryAssets((prev) => prev.filter((asset) => !removedDeviceIds.has(asset.id)));
                             }
+
+                            for (const id of libraryIds) {
+                                await deleteIndexedPhoto(id).catch(() => undefined);
+                            }
+
+                            for (const id of pickedIds) {
+                                await deleteIndexedPhoto(id).catch(() => undefined);
+                                await removePickedAsset(id);
+                            }
+
+                            if (pickedIds.length > 0) {
+                                removeCachedPickedAssets(pickedIds);
+                                const removedPickedIds = new Set(pickedIds);
+                                setPickedAssets((prev) => prev.filter((asset) => !removedPickedIds.has(asset.id)));
+                            }
+
                             setSelectedIds(new Set());
                             await refreshLibraryAssets();
+                            await refreshPickedAssets();
                         } catch (e) {
                             console.error('Bulk delete error:', e);
                             Alert.alert('Error', 'Could not delete the selected photos.');
@@ -432,7 +634,7 @@ export function GalleryGrid() {
                 },
             ],
         );
-    }, [selectedIds, refreshLibraryAssets]);
+    }, [selectedIds, refreshLibraryAssets, refreshPickedAssets]);
 
     const handleShareSelected = useCallback(async () => {
         if (selectedIds.size === 0) return;
@@ -492,10 +694,7 @@ export function GalleryGrid() {
         () => mergeAssets(combinedLibraryAssets, pickedAssets),
         [combinedLibraryAssets, pickedAssets]
     );
-    const deniedAssets = useMemo(
-        () => mergeAssets(MOCK_PHOTOS, pickedAssets),
-        [pickedAssets]
-    );
+    const deniedAssets = pickedAssets;
     const listItems = useMemo(() => buildListItems(groupByDate(combinedAssets)), [combinedAssets]);
 
     const renderItem = useCallback(({ item }: { item: ListItem }) => {
@@ -565,8 +764,8 @@ export function GalleryGrid() {
                     <View style={styles.mockBannerContent}>
                         <Text style={styles.mockBannerText}>
                             {usesExpoGoFallback
-                                ? 'Expo Go Android tam galeri erisimi vermez. Tek bir gercek foto secip AI search test edebilirsin.'
-                                : 'Demo mode: photo access is off. Allow access to test real uploads and AI search.'}
+                                ? 'Expo Go Android tam galeri erisimi vermez. Tek bir gercek foto secip uygulamada kullanabilirsin.'
+                                : 'Photo access is off. Allow access to load your real gallery.'}
                         </Text>
                         {pickerStatus ? <Text style={styles.mockBannerSubtext}>{pickerStatus}</Text> : null}
                     </View>
@@ -585,7 +784,7 @@ export function GalleryGrid() {
                                 {isPickingPhoto ? (
                                     <ActivityIndicator color="#fff" size="small" />
                                 ) : (
-                                    <Text style={styles.pickButtonText}>Pick and Index</Text>
+                                    <Text style={styles.pickButtonText}>Pick Photo</Text>
                                 )}
                             </TouchableOpacity>
                         ) : null}
@@ -596,6 +795,11 @@ export function GalleryGrid() {
                     renderItem={renderItem}
                     getItemType={(item) => item.type}
                     showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={
+                        <View style={styles.center}>
+                            <Text style={styles.msg}>No photos to show yet.</Text>
+                        </View>
+                    }
                 />
             </View>
         );

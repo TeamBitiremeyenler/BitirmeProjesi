@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import PageProvider from "@/src/components/page-provider";
-import { Text, View, ScrollView, Dimensions, Animated, Easing, TouchableOpacity } from "react-native";
+import { Text, View, ScrollView, Animated, Easing, TouchableOpacity } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Star, X } from "lucide-react-native";
@@ -8,8 +8,6 @@ import { Button, Surface, Switch } from "heroui-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { trackEvent } from "@/src/mixpanel";
-
-const { width } = Dimensions.get("window");
 
 const AVATAR_MAP: Record<number, any> = {
     1: require("@/assets/real assets/mainLogo.png"),
@@ -35,7 +33,7 @@ export default function FirstPaywall() {
     const slideAnim = useRef(new Animated.Value(0)).current;
 
     // Translated Reviews Array 
-    const REVIEWS: IReview[] = [
+    const REVIEWS: IReview[] = useMemo(() => [
         {
             id: "1",
             name: t('paywall_first.reviews.review_1.name'),
@@ -57,7 +55,7 @@ export default function FirstPaywall() {
             comment: t('paywall_first.reviews.review_3.comment'),
             date: t('paywall_first.reviews.review_3.date')
         },
-    ];
+    ], [t]);
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -96,7 +94,7 @@ export default function FirstPaywall() {
         }, 3000);
 
         return () => clearInterval(interval);
-    }, [REVIEWS]);
+    }, [REVIEWS.length, fadeAnim, slideAnim]);
 
     useEffect(() => {
         trackEvent("first_paywall_opened");
@@ -179,7 +177,7 @@ export default function FirstPaywall() {
                                     </View>
                                 </View>
                                 <Text className="text-sm leading-5 opacity-70 italic">
-                                    "{REVIEWS[index].comment}"
+                                    {`"${REVIEWS[index].comment}"`}
                                 </Text>
                             </Surface>
                         </Animated.View>

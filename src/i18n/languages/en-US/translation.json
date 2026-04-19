@@ -1,17 +1,17 @@
 {
     "welcome": {
         "title": "Welcome to Smart Gallery",
-        "subtitle": "Turn your photos and notes into organized moments effortlessly.",
+        "subtitle": "Turn your photo library into searchable, organized memories.",
         "buttons": {
             "getStarted": "Get Started",
             "apple": "Continue with Apple",
             "email": "Continue with Email"
         },
         "sliderTitles": {
-            "first": "Auto-detect calendars from your photos. ",
-            "second": "Link specific dates to your notes. ",
-            "third": "Get notified exactly when you ask. ",
-            "fourth": "Organize everything into custom collections."
+            "first": "Find photos by what is inside them. ",
+            "second": "Browse every album in one clean gallery. ",
+            "third": "Group memories by the people in them. ",
+            "fourth": "Edit and organize favorites in seconds."
         }
     },
     "onboarding": {
@@ -21,10 +21,10 @@
             "collection_title": "Organize"
         },
         "use_cases": {
-            "work": "Work deadlines",
-            "social": "Social events",
-            "school": "School schedules",
-            "reminder": "Reminders"
+            "work": "Work photos",
+            "social": "Friends and family",
+            "school": "School memories",
+            "travel": "Travel moments"
         },
         "customizing": {
             "creating": "Creating your workspace...",
@@ -53,7 +53,7 @@
             "name_description": "Used to identify you in the Smart Gallery app.",
             "collection_label": "First Collection Name",
             "collection_placeholder": "e.g., Work or Travel",
-            "collection_description": "Create collections to group your photos and notes."
+            "collection_description": "Create collections to group your favorite photos."
         },
         "errors": {
             "name_required": "Name is required",
@@ -106,7 +106,7 @@
             "contact": "Contact Support"
         },
         "placeholders": {
-            "notifications_settings": "Notification Preferences",
+            "gallery_settings": "Gallery Preferences",
             "manage_collections": "Manage Collections"
         },
         "dangerZone": {
@@ -122,18 +122,18 @@
         },
         "reviews": {
             "review_1": {
-                "name": "Sarah Jenkins",
-                "comment": "I took a photo of my calendar and it added it to the app instantly. Such a time saver!",
+                "name": "Emily Carter",
+                "comment": "No more spending hours trying to find the exact photo I need.",
                 "date": "2 days ago"
             },
             "review_2": {
                 "name": "Marcus T.",
-                "comment": "I love adding dates to my text notes. The notifications are always on time.",
+                "comment": "Thanks to Premium, I do not waste time fighting with Photoshop anymore.",
                 "date": "1 week ago"
             },
             "review_3": {
-                "name": "Elena Rodriguez",
-                "comment": "Organizing my collections is so easy now. The UI is incredibly smooth and helpful.",
+                "name": "Sophia Reynolds",
+                "comment": "The AI tools make quick photo edits feel effortless.",
                 "date": "3 days ago"
             }
         },
@@ -159,11 +159,11 @@
         "stepper": {
             "today": {
                 "label": "Today",
-                "description": "Your 7-day free trial starts. Access all photo calendar features."
+                "description": "Your 7-day free trial starts. Access AI search, albums, people, and editing features."
             },
             "day5": {
                 "label": "Day 5",
-                "description": "Trial reminder. We'll notify you before your trial ends."
+                "description": "A quick trial check-in before your premium access changes."
             },
             "day7": {
                 "label": "Day 7",
@@ -207,10 +207,10 @@
             },
             "labels": {
                 "ai": "AI",
-                "notification": "Notification",
-                "calendar": "Calendar",
-                "tagging": "Tagging",
-                "organization": "Organization"
+                "search": "Search",
+                "albums": "Albums",
+                "people": "People",
+                "editing": "Editing"
             },
             "buttons": {
                 "submit": "Submit",
@@ -252,19 +252,19 @@
         "cta": "Continue"
     },
     "thirdPaywall": {
-        "title": "Master Your Schedule with Smart Gallery",
+        "title": "Unlock a Smarter Gallery",
         "features": {
-            "calendarScan": {
-                "title": "AI Calendar Scanning",
-                "description": "Take a photo of any schedule; we'll find and add the events automatically."
+            "visualSearch": {
+                "title": "AI Photo Search",
+                "description": "Search your library by scenes, objects, places, and visual details."
             },
-            "smartNotes": {
-                "title": "Smart Text & Notifications",
-                "description": "Add dates to your text notes and receive notifications exactly when requested."
+            "peopleAlbums": {
+                "title": "People Albums",
+                "description": "Find photos of the same person faster with smart face grouping."
             },
             "collections": {
                 "title": "Organized Collections",
-                "description": "Keep your scanned calendars and text notes perfectly organized in custom groups."
+                "description": "Keep favorite memories, trips, and projects neatly grouped."
             }
         },
         "controls": {
@@ -278,13 +278,6 @@
             "description": "Smart Gallery needs access to your camera to capture photos and enrich your gallery experience.",
             "allow": "Allow Access",
             "later": "Maybe Later",
-            "settings": "Open Settings"
-        },
-        "notifications": {
-            "title": "Stay Notified",
-            "description": "Smart Gallery will send you reminders about the moments and features you choose to follow.",
-            "allow": "Enable Notifications",
-            "later": "Not Now",
             "settings": "Open Settings"
         },
         "tracking": {

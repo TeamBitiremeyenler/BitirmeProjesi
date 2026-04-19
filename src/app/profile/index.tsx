@@ -1,20 +1,25 @@
 import PageProvider from "@/src/components/page-provider";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Divider, Surface } from "heroui-native";
 import { Bolt, Info, ListCheck, LogOut, Star, Trash, UserRoundPen } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
+import { useState } from "react";
 import { trackEvent } from "@/src/mixpanel";
 import { supabase } from "@/lib/supabase";
 import { useAuthContext } from "@/src/hooks/auth-hooks";
 import { goBackOrReplace } from "@/src/lib/navigation";
+import { deleteCurrentAccount } from "@/src/lib/api/auth";
 import { clearSyncMap } from "@/src/lib/local-sync-store";
+import { clearRecentSearchQueries } from "@/src/lib/search-history";
+import { clearSavedLibraryAssets } from "@/src/lib/saved-assets-store";
 
 export default function Profile() {
     const { profile } = useAuthContext();
     const { t } = useTranslation();
     const router = useRouter();
+    const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
     const handleBack = () => {
         trackEvent("go_back_from_profile");
@@ -26,9 +31,51 @@ export default function Profile() {
         router.push("/paywalls/first_paywall");
     };
 
+    const confirmDeleteAccount = async () => {
+        if (isDeletingAccount) return;
+
+        trackEvent("confirm_delete_account_from_profile");
+        setIsDeletingAccount(true);
+
+        try {
+            await deleteCurrentAccount();
+            await Promise.allSettled([
+                clearSyncMap(),
+                clearRecentSearchQueries(),
+                clearSavedLibraryAssets(),
+            ]);
+            await supabase.auth.signOut();
+            router.replace("/");
+        } catch (error) {
+            console.error("Error deleting account:", error);
+            const message = error instanceof Error
+                ? error.message
+                : "Your account could not be deleted. Please try again.";
+            Alert.alert("Hesap Silinemedi", message);
+        } finally {
+            setIsDeletingAccount(false);
+        }
+    };
+
     const deleteAccount = () => {
         trackEvent("go_to_delete_account_from_profile");
-        //router.push("/delete-account");
+        Alert.alert(
+            "Hesabı Sil?",
+            "Bu işlem geri alınamaz. Emin misin?",
+            [
+                {
+                    text: "Vazgeç",
+                    style: "cancel",
+                },
+                {
+                    text: "Sil",
+                    style: "destructive",
+                    onPress: () => {
+                        void confirmDeleteAccount();
+                    },
+                },
+            ],
+        );
     };
 
     const logout = async () => {
@@ -109,9 +156,13 @@ export default function Profile() {
                 <Surface className="p-4 gap-6 mt-4 mb-10">
                     <TouchableOpacity
                         onPress={deleteAccount}
+                        disabled={isDeletingAccount}
                         className="flex-row items-center gap-4" activeOpacity={0.7}>
                         <Trash size={24} color="#737272" />
-                        <Text className="text-lg text-muted-foreground">{t('profile.dangerZone.deleteAccount')}</Text>
+                        <Text className="text-lg text-muted-foreground">
+                            {isDeletingAccount ? 'Hesap Siliniyor...' : t('profile.dangerZone.deleteAccount')}
+                        </Text>
+                        {isDeletingAccount ? <ActivityIndicator size="small" color="#737272" /> : null}
                     </TouchableOpacity>
                     <TouchableOpacity
                         onPress={logout}

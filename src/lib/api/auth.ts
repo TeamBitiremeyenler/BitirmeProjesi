@@ -44,3 +44,40 @@ export async function sendPasswordResetEmail(email: string): Promise<void> {
         throw error;
     }
 }
+
+export async function deleteCurrentAccount(): Promise<void> {
+    const baseUrl = resolveBackendBaseUrl();
+    if (!baseUrl) {
+        throw new Error('backend_not_configured');
+    }
+
+    const {
+        data: { session },
+        error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError) {
+        throw sessionError;
+    }
+
+    const accessToken = session?.access_token;
+    if (!accessToken) {
+        throw new Error('missing_auth_session');
+    }
+
+    const response = await fetch(`${baseUrl}/api/auth/account`, {
+        method: 'DELETE',
+        headers: {
+            Authorization: `Bearer ${accessToken}`,
+        },
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        const detail =
+            typeof payload?.detail === 'string'
+                ? payload.detail
+                : `delete_account_failed_${response.status}`;
+        throw new Error(detail);
+    }
+}

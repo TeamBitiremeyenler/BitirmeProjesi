@@ -8,7 +8,10 @@ type PickedAssetMap = Record<string, PickedAsset>;
 
 export type PickedAsset = {
     uri: string;
+    assetId?: string | null;
     filename?: string | null;
+    width?: number | null;
+    height?: number | null;
     creationTime?: number;
 };
 
@@ -60,6 +63,14 @@ export async function getLocalAssetId(backendUUID: string): Promise<string | nul
     return entry ? entry[0] : null;
 }
 
+export async function removeMapping(localAssetId: string): Promise<void> {
+    const map = await readMap();
+    if (!(localAssetId in map)) return;
+
+    delete map[localAssetId];
+    await writeMap(map);
+}
+
 export async function savePickedAsset(localAssetId: string, asset: PickedAsset): Promise<void> {
     const map = await readPickedMap();
     map[localAssetId] = asset;
@@ -69,6 +80,15 @@ export async function savePickedAsset(localAssetId: string, asset: PickedAsset):
 export async function getPickedAsset(localAssetId: string): Promise<PickedAsset | null> {
     const map = await readPickedMap();
     return map[localAssetId] ?? null;
+}
+
+export async function removePickedAsset(localAssetId: string): Promise<void> {
+    const map = await readPickedMap();
+    if (!(localAssetId in map)) return;
+
+    delete map[localAssetId];
+    await writePickedMap(map);
+    await removeMapping(localAssetId);
 }
 
 export async function listPickedAssets(): Promise<PickedAssetEntry[]> {

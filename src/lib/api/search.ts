@@ -404,3 +404,41 @@ export async function clearRemoteSearchCache(): Promise<ClearSearchCacheResponse
         clearTimeout(timeoutId);
     }
 }
+
+export async function deleteIndexedPhoto(photoId: string): Promise<boolean> {
+    const baseUrl = resolveBackendBaseUrl();
+    const cleanedPhotoId = photoId.trim();
+    if (!baseUrl || !cleanedPhotoId) {
+        return false;
+    }
+
+    let accessToken: string | undefined;
+    try {
+        const {
+            data: { session },
+        } = await supabase.auth.getSession();
+        accessToken = session?.access_token;
+    } catch {
+        accessToken = undefined;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SEARCH_REQUEST_TIMEOUT_MS);
+
+    try {
+        const response = await fetch(`${baseUrl}/api/search/photos/${encodeURIComponent(cleanedPhotoId)}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+            },
+            signal: controller.signal,
+        });
+
+        return response.ok;
+    } catch {
+        return false;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}

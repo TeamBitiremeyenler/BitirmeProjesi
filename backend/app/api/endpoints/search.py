@@ -42,3 +42,27 @@ async def clear_search_cache(
         "status": "success",
         "summary": summary,
     }
+
+
+@router.delete("/search/photos/{photo_id:path}")
+async def delete_photo_from_search(
+    photo_id: str,
+    user_id: str = Depends(get_current_user_id)
+):
+    cleaned_photo_id = photo_id.strip()
+    if not cleaned_photo_id:
+        raise HTTPException(status_code=400, detail="Photo id is required")
+
+    try:
+        summary = SearchService().delete_photo_index_data(
+            user_id=user_id,
+            photo_id=cleaned_photo_id,
+            strict=True,
+        )
+    except Exception as delete_error:
+        raise HTTPException(status_code=500, detail=f"Photo cleanup failed: {delete_error}")
+
+    return {
+        "status": "success",
+        "summary": summary,
+    }
