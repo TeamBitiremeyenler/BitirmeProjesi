@@ -8,26 +8,21 @@ import {
     Dimensions,
     FlatList,
     Image as RNImage,
-    KeyboardAvoidingView,
-    Modal,
+    LayoutChangeEvent,
     NativeScrollEvent,
     NativeSyntheticEvent,
-    Platform,
-    ScrollView,
     StyleSheet,
     Text,
-    TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system/legacy';
-import { ChevronLeft, Pencil, Share2, Trash2, Sparkles, X, Send } from 'lucide-react-native';
+import { StatusBar } from 'expo-status-bar';
+import { ChevronLeft, Pencil, Share2, Trash2, Sparkles } from 'lucide-react-native';
 import * as MediaLibrary from 'expo-media-library';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { editPhotoWithAI, AIError } from '@/src/lib/api/ai';
-
+import { ZoomableImage } from '@/src/components/photo-detail/ZoomableImage';
 import { uploadSearchablePhoto } from '@/src/lib/api/upload';
 import { getGalleryCacheSnapshot, subscribeGalleryCache, warmRemainingLibraryAssets } from '@/src/lib/gallery-cache';
 import { getPickedAsset, listPickedAssets, type PickedAssetEntry } from '@/src/lib/local-sync-store';
@@ -64,7 +59,7 @@ const THUMB_CONTENT_HORIZONTAL_PADDING = 12;
 
 function toGalleryPhotoFromAsset(
     asset: Pick<Asset, 'id' | 'uri' | 'filename' | 'creationTime' | 'modificationTime' | 'width' | 'height'>,
-    source: GalleryPhoto['source']
+    source: GalleryPhoto['source'],
 ): GalleryPhoto {
     return {
         id: asset.id,
@@ -139,6 +134,8 @@ export default function PhotoDetail() {
     const lastThumbRailIndexRef = useRef(0);
     const isThumbDraggingRef = useRef(false);
     const lastThumbCenterIndexRef = useRef(0);
+    const initialThumbOffsetRef = useRef<number | null>(null);
+    const chromeOpacity = useRef(new Animated.Value(1)).current;
 
     const [galleryPhotos, setGalleryPhotos] = useState<GalleryPhoto[]>([]);
     const [currentPhotoId, setCurrentPhotoId] = useState(photoId ?? '');
@@ -151,24 +148,60 @@ export default function PhotoDetail() {
     const [thumbPreviewIndex, setThumbPreviewIndex] = useState<number | null>(null);
     const [isThumbRailReady, setIsThumbRailReady] = useState(false);
     const [assetRefreshTick, setAssetRefreshTick] = useState(0);
+    const [isZoomed, setIsZoomed] = useState(false);
+    const [isChromeVisible, setIsChromeVisible] = useState(true);
+    const [stageSize, setStageSize] = useState<{ width: number; height: number }>({
+        width: SCREEN_WIDTH,
+        height: STAGE_HEIGHT,
+    });
 
-    // ── AI panel state ────────────────────────────────────────────────
-    const [aiPanelOpen, setAiPanelOpen] = useState(false);
-    const [aiPrompt, setAiPrompt] = useState('');
-    const [aiLoading, setAiLoading] = useState(false);
-    const [aiResultB64, setAiResultB64] = useState<string | null>(null);
-    const [aiError, setAiError] = useState<string | null>(null);
-    const [aiCredits, setAiCredits] = useState<number | null>(null);
-    const [isSavingAiResult, setIsSavingAiResult] = useState(false);
-    const aiPanelAnim = useRef(new Animated.Value(0)).current;
     const gallerySignature = useMemo(
         () => galleryPhotos.map((photo) => photo.id).join('|'),
-        [galleryPhotos]
+        [galleryPhotos],
     );
 
     const handleBack = useCallback(() => {
         goBackOrReplace(router, '/home');
     }, [router]);
+
+    const handleToggleChrome = useCallback(() => {
+        chromeOpacity.stopAnimation();
+
+        if (isChromeVisible) {
+            Animated.timing(chromeOpacity, {
+                toValue: 0,
+                duration: 220,
+                useNativeDriver: true,
+            }).start(({ finished }) => {
+                if (finished) {
+                    setIsChromeVisible(false);
+                }
+            });
+            return;
+        }
+
+        setIsChromeVisible(true);
+        Animated.timing(chromeOpacity, {
+            toValue: 1,
+            duration: 220,
+            useNativeDriver: true,
+        }).start();
+    }, [chromeOpacity, isChromeVisible]);
+
+    const handleZoomChange = useCallback((zoomed: boolean) => {
+        setIsZoomed(zoomed);
+    }, []);
+
+    const handleStageLayout = useCallback((event: LayoutChangeEvent) => {
+        const { width, height } = event.nativeEvent.layout;
+        if (width > 0 && height > 0) {
+            setStageSize((prev) => (
+                prev.width === width && prev.height === height
+                    ? prev
+                    : { width, height }
+            ));
+        }
+    }, []);
 
     useEffect(() => {
         if (photoId) {
@@ -187,7 +220,10 @@ export default function PhotoDetail() {
         initialThumbOffsetRef.current = null;
         setThumbPreviewIndex(null);
         setIsThumbRailReady(false);
-    }, [photoId]);
+        setIsZoomed(false);
+        setIsChromeVisible(true);
+        chromeOpacity.setValue(1);
+    }, [chromeOpacity, photoId]);
 
     useEffect(() => {
         let isMounted = true;
@@ -267,12 +303,10 @@ export default function PhotoDetail() {
 
                 warmRemainingLibraryAssets().catch(() => undefined);
             } catch {
-                if (isMounted) {
-                    if (!bootstrapped) {
-                        setError('Could not load photos.');
-                        setGalleryPhotos([]);
-                        setIsLoading(false);
-                    }
+                if (isMounted && !bootstrapped) {
+                    setError('Could not load photos.');
+                    setGalleryPhotos([]);
+                    setIsLoading(false);
                 }
             }
         }
@@ -320,7 +354,7 @@ export default function PhotoDetail() {
 
     const currentPhoto = useMemo(
         () => galleryPhotos.find((photo) => photo.id === currentPhotoId) ?? null,
-        [galleryPhotos, currentPhotoId]
+        [galleryPhotos, currentPhotoId],
     );
 
     const currentIndex = useMemo(() => {
@@ -338,15 +372,14 @@ export default function PhotoDetail() {
 
     const previousPhoto = useMemo(
         () => (currentIndex > 0 ? galleryPhotos[currentIndex - 1] : null),
-        [currentIndex, galleryPhotos]
+        [currentIndex, galleryPhotos],
     );
     const nextPhoto = useMemo(
         () => (currentIndex < galleryPhotos.length - 1 ? galleryPhotos[currentIndex + 1] : null),
-        [currentIndex, galleryPhotos]
+        [currentIndex, galleryPhotos],
     );
     const activeThumbIndex = thumbPreviewIndex ?? currentIndex;
 
-    const initialThumbOffsetRef = useRef<number | null>(null);
     if (initialThumbOffsetRef.current === null && galleryPhotos.length > 0) {
         const contentWidth =
             THUMB_CONTENT_HORIZONTAL_PADDING * 2
@@ -362,11 +395,9 @@ export default function PhotoDetail() {
     }
 
     const syncThumbRail = useCallback((index: number, animated: boolean) => {
-        // Don't move thumb rail while user is dragging it
         if (isThumbDraggingRef.current) return;
 
         const roundedIndex = Math.max(0, Math.min(Math.round(index), galleryPhotos.length - 1));
-
         if (!animated && roundedIndex === lastThumbRailIndexRef.current) {
             return;
         }
@@ -378,7 +409,6 @@ export default function PhotoDetail() {
             viewPosition: 0.5,
         });
     }, [galleryPhotos.length]);
-
 
     useEffect(() => {
         if (!galleryPhotos.length) return;
@@ -419,7 +449,7 @@ export default function PhotoDetail() {
 
     useEffect(() => {
         const urisToPrefetch = [currentPhoto?.uri, previousPhoto?.uri, nextPhoto?.uri].filter(
-            (uri): uri is string => Boolean(uri)
+            (uri): uri is string => Boolean(uri),
         );
 
         urisToPrefetch.forEach((uri) => {
@@ -481,6 +511,7 @@ export default function PhotoDetail() {
             try {
                 const info = await getAssetById(currentPhotoId);
                 if (!info || !isMounted) return;
+
                 assetInfoCacheRef.current[currentPhotoId] = info;
                 setCurrentAsset(info);
                 setGalleryPhotos((prev) => mergeCurrentPhotoIntoGallery(prev, {
@@ -552,7 +583,7 @@ export default function PhotoDetail() {
                 if (isMounted) {
                     setMeasuredSize(null);
                 }
-            }
+            },
         );
 
         return () => {
@@ -653,108 +684,26 @@ export default function PhotoDetail() {
         }
     }, [activeAsset, currentPhotoId]);
 
-    // ── AI edit handler ───────────────────────────────────────────────
-    const openAiPanel = useCallback(() => {
-        setAiPanelOpen(true);
-        setAiResultB64(null);
-        setAiError(null);
-        setAiPrompt('');
-        Animated.spring(aiPanelAnim, {
-            toValue: 1,
-            useNativeDriver: true,
-            tension: 65,
-            friction: 11,
-        }).start();
-    }, [aiPanelAnim]);
+    const handleAiSearchPress = useCallback(() => {
+        if (!currentPhoto) return;
 
-    const closeAiPanel = useCallback(() => {
-        Animated.timing(aiPanelAnim, {
-            toValue: 0,
-            duration: 220,
-            useNativeDriver: true,
-        }).start(() => setAiPanelOpen(false));
-    }, [aiPanelAnim]);
-
-    const handleAskAI = useCallback(async () => {
-        const trimmed = aiPrompt.trim();
-        if (!trimmed || !imageUri) return;
-
-        setAiLoading(true);
-        setAiResultB64(null);
-        setAiError(null);
-
-        // Step 1: Resolve the image to a base64 string.
-        // - Local file:// URIs → read directly
-        // - Remote https:// URLs (e.g. mock/picsum photos) → download to cache first
-        let base64: string;
-        try {
-            const isRemote = imageUri.startsWith('http://') || imageUri.startsWith('https://');
-
-            if (isRemote) {
-                const cacheUri = `${FileSystem.cacheDirectory}ai_input_${Date.now()}.jpg`;
-                await FileSystem.downloadAsync(imageUri, cacheUri);
-                base64 = await FileSystem.readAsStringAsync(cacheUri, {
-                    encoding: FileSystem.EncodingType.Base64,
-                });
-                // Clean up cache file in background
-                FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(() => undefined);
-            } else {
-                base64 = await FileSystem.readAsStringAsync(imageUri, {
-                    encoding: FileSystem.EncodingType.Base64,
-                });
-            }
-        } catch {
-            setAiLoading(false);
-            setAiError('Could not load this photo. Please try again.');
+        if (currentPhoto.source === 'mock') {
+            Alert.alert('Unavailable', 'Demo photos cannot be indexed.');
             return;
         }
 
-        // Step 2: Send to backend
-        try {
-            const imageDataUri = `data:image/jpeg;base64,${base64}`;
-            const response = await editPhotoWithAI({
-                prompt: trimmed,
-                imageUri: imageDataUri,
-            });
-            setAiResultB64(response.b64);
-            setAiCredits(response.creditsRemaining);
-        } catch (err) {
-            setAiError(err instanceof AIError ? err.message : `Unexpected error: ${String(err)}`);
-        } finally {
-            setAiLoading(false);
+        if (currentPhoto.source === 'picked') {
+            Alert.alert('Already Available', 'Picked photos are already available for backend search testing.');
+            return;
         }
-    }, [aiPrompt, imageUri]);
 
-    const handleSaveAiResult = useCallback(async () => {
-        if (!aiResultB64) return;
-        setIsSavingAiResult(true);
-        try {
-            // Pass writeOnly=true to avoid the AUDIO permission crash
-            const { status } = await MediaLibrary.requestPermissionsAsync(true);
-            if (status !== 'granted') {
-                Alert.alert('Permission needed', 'Allow access to your photo library to save the edited image.');
-                return;
-            }
-            // Strip the data:image/png;base64, prefix
-            const b64Data = aiResultB64.split(',')[1];
-            if (!b64Data) throw new Error("Invalid base64 payload");
-
-            const fileUri = `${FileSystem.cacheDirectory}ai_edit_${Date.now()}.png`;
-            await FileSystem.writeAsStringAsync(fileUri, b64Data, {
-                encoding: FileSystem.EncodingType.Base64,
-            });
-            const asset = await MediaLibrary.createAssetAsync(fileUri);
-            await MediaLibrary.createAlbumAsync('Smart Gallery', asset, false).catch(() => undefined);
-            
-            Alert.alert('Saved! 🎉', 'The AI-edited image has been saved to your gallery.');
-        } catch (error) {
-            console.error('Save error:', error);
-            const message = error instanceof Error ? error.message : 'Unknown error occurred.';
-            Alert.alert('Error', `Could not save the image: ${message}`);
-        } finally {
-            setIsSavingAiResult(false);
+        if (!activeAsset) {
+            Alert.alert('Unavailable', 'This photo is still syncing from the device library.');
+            return;
         }
-    }, [aiResultB64]);
+
+        void handleIndexForSearch();
+    }, [activeAsset, currentPhoto, handleIndexForSearch]);
 
     const showPhotoAtIndex = useCallback((index: number) => {
         if (!galleryPhotos[index]) return;
@@ -777,8 +726,6 @@ export default function PhotoDetail() {
         lastPagerPreviewIndexRef.current = boundedIndex;
         syncThumbRail(boundedIndex, false);
 
-        // Update currentPhotoId BEFORE clearing thumbPreviewIndex
-        // so React batches both and activeThumbIndex never flickers
         if (nextPhoto && nextPhoto.id !== currentPhotoId) {
             setCurrentPhotoId(nextPhoto.id);
         }
@@ -790,7 +737,7 @@ export default function PhotoDetail() {
 
         const startIndex = Math.max(
             0,
-            Math.min(Math.round(event.nativeEvent.contentOffset.x / PAGE_WIDTH), galleryPhotos.length - 1)
+            Math.min(Math.round(event.nativeEvent.contentOffset.x / PAGE_WIDTH), galleryPhotos.length - 1),
         );
 
         isPagerDraggingRef.current = true;
@@ -809,7 +756,7 @@ export default function PhotoDetail() {
         lastPagerPreviewIndexRef.current = previewIndex;
         syncThumbRail(previewIndex, true);
         setThumbPreviewIndex(previewIndex === currentIndex ? null : previewIndex);
-    }, [currentIndex, galleryPhotos, syncThumbRail]);
+    }, [currentIndex, galleryPhotos.length, syncThumbRail]);
 
     const handlePagerEndDrag = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
         const velocityX = event.nativeEvent.velocity?.x ?? 0;
@@ -835,7 +782,6 @@ export default function PhotoDetail() {
         if (!galleryPhotos.length || !isThumbDraggingRef.current) return;
 
         const offsetX = event.nativeEvent.contentOffset.x;
-        // Find which thumb is at the center of the screen
         const centerX = offsetX + SCREEN_WIDTH / 2 - THUMB_CONTENT_HORIZONTAL_PADDING;
         const centerIndex = Math.round(centerX / THUMB_ITEM_STRIDE);
         const bounded = Math.max(0, Math.min(centerIndex, galleryPhotos.length - 1));
@@ -846,7 +792,7 @@ export default function PhotoDetail() {
         lastPagerPreviewIndexRef.current = bounded;
         setThumbPreviewIndex(bounded === currentIndex ? null : bounded);
         pagerRef.current?.scrollToIndex({ index: bounded, animated: false });
-    }, [currentIndex, galleryPhotos]);
+    }, [currentIndex, galleryPhotos.length]);
 
     const finalizeThumbPosition = useCallback((offsetX: number) => {
         if (!galleryPhotos.length) return;
@@ -889,25 +835,38 @@ export default function PhotoDetail() {
         );
 
         return (
-            <View style={styles.page}>
-                <View style={styles.imageStage}>
-                    <RNImage
-                        key={`${item.id}:${imageRevision ?? 0}`}
-                        source={{ uri: resolvedUri }}
-                        style={styles.image}
-                        resizeMode="contain"
-                        fadeDuration={0}
-                        progressiveRenderingEnabled={false}
-                    />
+            <View style={[styles.page, { height: stageSize.height }]}>
+                <View style={[styles.imageStage, { width: stageSize.width, height: stageSize.height }]}>
+                    {isCurrent ? (
+                        <ZoomableImage
+                            key={`${item.id}:${imageRevision ?? 0}`}
+                            uri={resolvedUri}
+                            width={stageSize.width}
+                            height={stageSize.height}
+                            onZoomChange={handleZoomChange}
+                            onSingleTap={handleToggleChrome}
+                            onDismissRequest={handleBack}
+                        />
+                    ) : (
+                        <RNImage
+                            key={`${item.id}:${imageRevision ?? 0}`}
+                            source={{ uri: resolvedUri }}
+                            style={styles.image}
+                            resizeMode="contain"
+                            fadeDuration={0}
+                            progressiveRenderingEnabled={false}
+                        />
+                    )}
                 </View>
             </View>
         );
-    }, [activeAsset, currentPhotoId, imageUri]);
+    }, [activeAsset, currentPhotoId, handleBack, handleToggleChrome, handleZoomChange, imageUri, stageSize]);
 
     const renderThumbItem = useCallback(({ item, index }: { item: GalleryPhoto; index: number }) => {
         const isActive = index === activeThumbIndex;
         const imageRevision = item.modificationTime ?? item.creationTime;
         const thumbUri = getVersionedMediaUri(item.uri, imageRevision);
+
         return (
             <TouchableOpacity
                 onPress={() => showPhotoAtIndex(index)}
@@ -947,7 +906,12 @@ export default function PhotoDetail() {
 
     return (
         <View style={[styles.root, { paddingTop: insets.top }]}>
-            <View style={styles.topBar}>
+            <StatusBar style="light" />
+
+            <Animated.View
+                style={[styles.topBar, { opacity: chromeOpacity }]}
+                pointerEvents={isChromeVisible ? 'auto' : 'none'}
+            >
                 <TouchableOpacity onPress={handleBack} style={styles.iconBtn}>
                     <ChevronLeft size={24} color="#e5e7eb" />
                 </TouchableOpacity>
@@ -955,15 +919,16 @@ export default function PhotoDetail() {
                     {resolvedMeta ? formatDate(resolvedMeta.creationTime) : 'Photo'}
                 </Text>
                 <View style={styles.topBarSpacer} />
-            </View>
+            </Animated.View>
 
-            <View style={[styles.content, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-                <View style={styles.stageShell}>
+            <View style={styles.content}>
+                <View style={styles.stageShell} onLayout={handleStageLayout}>
                     <FlatList
                         ref={pagerRef}
                         data={galleryPhotos}
                         horizontal
                         pagingEnabled
+                        scrollEnabled={!isZoomed}
                         initialScrollIndex={currentIndex}
                         decelerationRate="fast"
                         showsHorizontalScrollIndicator={false}
@@ -990,210 +955,82 @@ export default function PhotoDetail() {
                     />
                 </View>
 
-                <View style={styles.actionsRow}>
+                <Animated.View
+                    style={[styles.actionsBar, { opacity: chromeOpacity }]}
+                    pointerEvents={isChromeVisible ? 'auto' : 'none'}
+                >
+                    <TouchableOpacity onPress={handleShare} style={styles.actionTab}>
+                        <Share2 size={22} strokeWidth={1.8} color="#e5e7eb" />
+                        <Text style={styles.actionTabLabel}>Share</Text>
+                    </TouchableOpacity>
+
                     <TouchableOpacity
                         onPress={() => router.push(`/photo-edit/${currentPhotoId}` as any)}
-                        style={[styles.actionButton, styles.primaryAction]}
+                        style={styles.actionTab}
                     >
-                        <Pencil size={18} color="#fff" />
-                        <Text style={styles.primaryActionText}>Edit</Text>
+                        <Pencil size={22} strokeWidth={1.8} color="#e5e7eb" />
+                        <Text style={styles.actionTabLabel}>Edit</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity onPress={handleShare} style={styles.actionButton}>
-                        <Share2 size={18} color="#111827" />
-                        <Text style={styles.actionText}>Share</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity onPress={openAiPanel} style={[styles.actionButton, styles.aiAction]}>
-                        <Sparkles size={18} color="#fff" />
-                        <Text style={styles.aiActionText}>Edit with AI</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity onPress={handleDelete} style={[styles.actionButton, styles.dangerAction]}>
-                        <Trash2 size={18} color="#ef4444" />
-                        <Text style={styles.dangerActionText}>Delete</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {galleryPhotos.length > 1 && isThumbRailReady ? (
-                    <View style={styles.thumbRail}>
-                        <FlatList
-                            ref={thumbRef}
-                            data={galleryPhotos}
-                            horizontal
-                            contentOffset={{ x: initialThumbOffsetRef.current ?? 0, y: 0 }}
-                            decelerationRate="fast"
-                            showsHorizontalScrollIndicator={false}
-                            keyExtractor={(item) => item.id}
-                            renderItem={renderThumbItem}
-                            contentContainerStyle={styles.thumbContent}
-                            scrollEventThrottle={16}
-                            onScrollBeginDrag={handleThumbBeginDrag}
-                            onScroll={handleThumbScroll}
-                            onScrollEndDrag={handleThumbEndDrag}
-                            onMomentumScrollEnd={handleThumbMomentumEnd}
-                            getItemLayout={(_, index) => ({
-                                length: THUMB_SIZE + THUMB_GAP,
-                                offset: (THUMB_SIZE + THUMB_GAP) * index,
-                                index,
-                            })}
-                            onScrollToIndexFailed={({ index }) => {
-                                setTimeout(() => {
-                                    thumbRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 });
-                                }, 50);
-                            }}
-                        />
-                    </View>
-                ) : null}
-
-                <View style={styles.footer}>
-                    {currentPhoto?.source === 'library' ? (
-                        <TouchableOpacity
-                            onPress={handleIndexForSearch}
-                            disabled={isIndexing || !activeAsset}
-                            style={[styles.indexButton, (isIndexing || !activeAsset) && styles.indexButtonDisabled]}
-                        >
-                            <Sparkles size={16} color="#fff" />
-                            {isIndexing ? (
-                                <ActivityIndicator color="#fff" />
-                            ) : (
-                                <Text style={styles.indexButtonText}>Index for AI Search</Text>
-                            )}
-                        </TouchableOpacity>
-                    ) : (
-                        <Text style={styles.footerHint}>
-                            Picked photos are already available for backend search testing.
-                        </Text>
-                    )}
-                    {indexStatus ? <Text style={styles.footerHint}>{indexStatus}</Text> : null}
-                </View>
-            </View>
-
-            {/* ── AI Ask Panel (Modal bottom sheet) ─────────────────── */}
-            <Modal
-                visible={aiPanelOpen}
-                transparent
-                animationType="none"
-                onRequestClose={closeAiPanel}
-                statusBarTranslucent
-            >
-                <TouchableOpacity
-                    style={styles.aiOverlay}
-                    activeOpacity={1}
-                    onPress={closeAiPanel}
-                />
-                <Animated.View
-                    style={[
-                        styles.aiSheet,
-                        {
-                            paddingBottom: Math.max(insets.bottom, 16),
-                            transform: [{
-                                translateY: aiPanelAnim.interpolate({
-                                    inputRange: [0, 1],
-                                    outputRange: [500, 0],
-                                }),
-                            }],
-                        },
-                    ]}
-                >
-                    {/* Header */}
-                    <View style={styles.aiSheetHeader}>
-                        <View style={styles.aiSheetTitleRow}>
-                            <Sparkles size={16} color="#8b5cf6" />
-                            <Text style={styles.aiSheetTitle}>Edit with AI</Text>
-                        </View>
-                        <TouchableOpacity onPress={closeAiPanel} hitSlop={12}>
-                            <X size={20} color="#9ca3af" />
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Example chips */}
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.aiChipsRow}
+                    <TouchableOpacity
+                        onPress={handleAiSearchPress}
+                        style={[styles.actionTab, isIndexing && styles.actionTabDisabled]}
+                        disabled={isIndexing}
                     >
-                        {['Make the sky more dramatic', 'Apply a vintage film look', 'Add golden hour lighting', 'Make it look like a painting', 'Add foggy atmosphere'].map((chip) => (
-                            <TouchableOpacity
-                                key={chip}
-                                style={styles.aiChip}
-                                onPress={() => setAiPrompt(chip)}
-                                activeOpacity={0.7}
-                            >
-                                <Text style={styles.aiChipText} numberOfLines={1}>{chip}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
+                        {isIndexing ? (
+                            <ActivityIndicator color="#c7d2fe" />
+                        ) : (
+                            <Sparkles size={22} strokeWidth={1.8} color="#c7d2fe" />
+                        )}
+                        <Text style={[styles.actionTabLabel, styles.actionTabLabelAccent]}>AI Search</Text>
+                    </TouchableOpacity>
 
-                    {/* Input */}
-                    <KeyboardAvoidingView
-                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                    >
-                        <View style={styles.aiInputRow}>
-                            <TextInput
-                                style={styles.aiInput}
-                                value={aiPrompt}
-                                onChangeText={setAiPrompt}
-                                placeholder="Describe your edit e.g. make the sky dramatic…"
-                                placeholderTextColor="#6b7280"
-                                multiline
-                                maxLength={500}
-                                returnKeyType="send"
-                                onSubmitEditing={handleAskAI}
-                            />
-                            <TouchableOpacity
-                                style={[styles.aiSendBtn, (!aiPrompt.trim() || aiLoading) && styles.aiSendBtnDisabled]}
-                                onPress={handleAskAI}
-                                disabled={!aiPrompt.trim() || aiLoading}
-                            >
-                                {aiLoading
-                                    ? <ActivityIndicator size="small" color="#fff" />
-                                    : <Send size={18} color="#fff" />}
-                            </TouchableOpacity>
-                        </View>
-                    </KeyboardAvoidingView>
-
-                    {/* Loading state */}
-                    {aiLoading && (
-                        <View style={styles.aiLoadingBox}>
-                            <ActivityIndicator color="#8b5cf6" />
-                            <Text style={styles.aiLoadingText}>DALL-E is editing your photo…</Text>
-                        </View>
-                    )}
-
-                    {/* Error */}
-                    {aiError ? (
-                        <View style={styles.aiErrorBox}>
-                            <Text style={styles.aiErrorText}>⚠️  {aiError}</Text>
-                        </View>
-                    ) : null}
-
-                    {/* Result image */}
-                    {aiResultB64 ? (
-                        <View style={styles.aiResultContainer}>
-                            <RNImage
-                                source={{ uri: aiResultB64 }}
-                                style={styles.aiResultImage}
-                                resizeMode="cover"
-                            />
-                            <View style={styles.aiResultActions}>
-                                <TouchableOpacity
-                                    style={styles.aiResultBtn}
-                                    onPress={handleSaveAiResult}
-                                    disabled={isSavingAiResult}
-                                >
-                                    {isSavingAiResult
-                                        ? <ActivityIndicator size="small" color="#fff" />
-                                        : <Text style={styles.aiResultBtnText}>💾  Save to Gallery</Text>}
-                                </TouchableOpacity>
-                                {aiCredits !== null && (
-                                    <Text style={styles.aiCreditsText}>{aiCredits} edits left this hour</Text>
-                                )}
-                            </View>
-                        </View>
-                    ) : null}
+                    <TouchableOpacity onPress={handleDelete} style={styles.actionTab}>
+                        <Trash2 size={22} strokeWidth={1.8} color="#ef4444" />
+                        <Text style={[styles.actionTabLabel, styles.actionTabLabelDanger]}>Delete</Text>
+                    </TouchableOpacity>
                 </Animated.View>
-            </Modal>
+
+                <Animated.View
+                    style={{ opacity: chromeOpacity }}
+                    pointerEvents={isChromeVisible ? 'auto' : 'none'}
+                >
+                    {galleryPhotos.length > 1 && isThumbRailReady ? (
+                        <View style={styles.thumbRail}>
+                            <FlatList
+                                ref={thumbRef}
+                                data={galleryPhotos}
+                                horizontal
+                                contentOffset={{ x: initialThumbOffsetRef.current ?? 0, y: 0 }}
+                                decelerationRate="fast"
+                                showsHorizontalScrollIndicator={false}
+                                keyExtractor={(item) => item.id}
+                                renderItem={renderThumbItem}
+                                contentContainerStyle={styles.thumbContent}
+                                scrollEventThrottle={16}
+                                onScrollBeginDrag={handleThumbBeginDrag}
+                                onScroll={handleThumbScroll}
+                                onScrollEndDrag={handleThumbEndDrag}
+                                onMomentumScrollEnd={handleThumbMomentumEnd}
+                                getItemLayout={(_, index) => ({
+                                    length: THUMB_SIZE + THUMB_GAP,
+                                    offset: (THUMB_SIZE + THUMB_GAP) * index,
+                                    index,
+                                })}
+                                onScrollToIndexFailed={({ index }) => {
+                                    setTimeout(() => {
+                                        thumbRef.current?.scrollToIndex({ index, animated: false, viewPosition: 0.5 });
+                                    }, 50);
+                                }}
+                            />
+                        </View>
+                    ) : (
+                        <View style={{ height: Math.max(insets.bottom, 8) }} />
+                    )}
+
+                    {indexStatus ? <Text style={styles.indexStatus}>{indexStatus}</Text> : null}
+                </Animated.View>
+            </View>
         </View>
     );
 }
@@ -1214,67 +1051,49 @@ const styles = StyleSheet.create({
     iconBtn: { padding: 8 },
     topTitle: { flex: 1, fontSize: 14, fontWeight: '600', textAlign: 'center', color: '#e5e7eb' },
     topBarSpacer: { width: 40 },
-    content: {
-        flex: 1,
-        gap: 14,
-    },
-    stageShell: {
-        height: STAGE_HEIGHT,
-    },
-    page: {
-        width: PAGE_WIDTH,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
+    content: { flex: 1 },
+    stageShell: { flex: 1, backgroundColor: '#050505' },
+    page: { width: PAGE_WIDTH, alignItems: 'center', justifyContent: 'center' },
     imageStage: {
-        width: STAGE_WIDTH,
-        height: STAGE_HEIGHT,
-        borderRadius: 26,
-        backgroundColor: '#0f0f10',
+        backgroundColor: '#050505',
         alignItems: 'center',
         justifyContent: 'center',
         overflow: 'hidden',
     },
-    image: {
-        width: '100%',
-        height: '100%',
-        backgroundColor: '#0f0f10',
-    },
-    actionsRow: {
+    image: { width: '100%', height: '100%', backgroundColor: '#0f0f10' },
+    actionsBar: {
         flexDirection: 'row',
-        gap: 10,
-        paddingHorizontal: 12,
+        alignItems: 'stretch',
+        justifyContent: 'space-around',
+        backgroundColor: 'rgba(18,18,22,0.92)',
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: 'rgba(255,255,255,0.06)',
+        paddingHorizontal: 4,
+        paddingTop: 8,
+        paddingBottom: 6,
     },
-    actionButton: {
+    actionTab: {
         flex: 1,
-        minHeight: 48,
-        borderRadius: 16,
-        backgroundColor: '#f3f4f6',
-        flexDirection: 'row',
+        minHeight: 54,
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
+        gap: 4,
+        paddingVertical: 4,
     },
-    primaryAction: {
-        backgroundColor: '#4f46e5',
+    actionTabDisabled: {
+        opacity: 0.7,
     },
-    primaryActionText: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: '700',
+    actionTabLabel: {
+        color: '#e5e7eb',
+        fontSize: 11,
+        fontWeight: '600',
+        letterSpacing: 0.1,
     },
-    actionText: {
-        color: '#111827',
-        fontSize: 14,
-        fontWeight: '700',
-    },
-    dangerAction: {
-        backgroundColor: '#1f1618',
-    },
-    deleteActionText: {
+    actionTabLabelDanger: {
         color: '#ef4444',
-        fontSize: 14,
-        fontWeight: '800',
+    },
+    actionTabLabelAccent: {
+        color: '#c7d2fe',
     },
     thumbRail: {
         minHeight: THUMB_SIZE + 4,
@@ -1299,181 +1118,12 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
     },
-    footer: {
-        marginTop: 'auto',
-        paddingHorizontal: 12,
-        gap: 8,
-    },
-    indexButton: {
-        minHeight: 46,
-        borderRadius: 18,
-        backgroundColor: '#312e81',
-        alignItems: 'center',
-        justifyContent: 'center',
+    indexStatus: {
         paddingHorizontal: 16,
-        flexDirection: 'row',
-        gap: 8,
-    },
-    indexButtonDisabled: {
-        opacity: 0.7,
-    },
-    indexButtonText: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: '700',
-    },
-    footerHint: {
+        paddingBottom: 10,
         fontSize: 12,
         lineHeight: 18,
+        textAlign: 'center',
         color: '#9ca3af',
-    },
-    // ── AI action button ───────────────────────────────────────────────
-    aiAction: {
-        backgroundColor: '#7c3aed',
-    },
-    aiActionText: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: '700',
-    },
-    // ── AI bottom sheet ────────────────────────────────────────────────
-    aiOverlay: {
-        position: 'absolute',
-        top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.55)',
-    },
-    aiSheet: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: '#1a1a28',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        paddingTop: 16,
-        paddingHorizontal: 16,
-        gap: 14,
-        minHeight: 260,
-        maxHeight: '75%',
-    },
-    aiSheetHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    aiSheetTitleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    aiSheetTitle: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#f1f0ff',
-    },
-    aiChipsRow: {
-        gap: 8,
-        paddingBottom: 2,
-    },
-    aiChip: {
-        backgroundColor: 'rgba(139,92,246,0.15)',
-        borderWidth: 1,
-        borderColor: 'rgba(139,92,246,0.3)',
-        borderRadius: 999,
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        maxWidth: 220,
-    },
-    aiChipText: {
-        fontSize: 12,
-        color: '#a78bfa',
-        fontWeight: '600',
-    },
-    aiInputRow: {
-        flexDirection: 'row',
-        alignItems: 'flex-end',
-        gap: 10,
-        backgroundColor: '#0f0f1a',
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: '#2d2d44',
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-    },
-    aiInput: {
-        flex: 1,
-        fontSize: 14,
-        color: '#f1f0ff',
-        minHeight: 40,
-        maxHeight: 100,
-        textAlignVertical: 'center',
-    },
-    aiSendBtn: {
-        width: 38,
-        height: 38,
-        borderRadius: 12,
-        backgroundColor: '#7c3aed',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    aiSendBtnDisabled: {
-        backgroundColor: '#2d2d44',
-    },
-    aiErrorBox: {
-        backgroundColor: 'rgba(248,113,113,0.1)',
-        borderWidth: 1,
-        borderColor: 'rgba(248,113,113,0.25)',
-        borderRadius: 12,
-        padding: 12,
-    },
-    aiErrorText: {
-        fontSize: 13,
-        color: '#fca5a5',
-        lineHeight: 19,
-    },
-    aiLoadingBox: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        padding: 14,
-        backgroundColor: 'rgba(139,92,246,0.1)',
-        borderRadius: 12,
-    },
-    aiLoadingText: {
-        fontSize: 13,
-        color: '#a78bfa',
-        fontWeight: '600',
-    },
-    aiResultContainer: {
-        borderRadius: 16,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: 'rgba(139,92,246,0.3)',
-    },
-    aiResultImage: {
-        width: '100%',
-        height: 200,
-    },
-    aiResultActions: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: 12,
-        backgroundColor: '#0f0f1a',
-    },
-    aiResultBtn: {
-        backgroundColor: '#7c3aed',
-        borderRadius: 12,
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-    },
-    aiResultBtnText: {
-        color: '#fff',
-        fontSize: 13,
-        fontWeight: '700',
-    },
-    aiCreditsText: {
-        fontSize: 11,
-        color: '#6b7280',
     },
 });
